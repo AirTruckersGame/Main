@@ -58,16 +58,23 @@ describe('dispatch state and compatibility', () => {
   it('cancels without changing cash, reputation, time, flight totals or aircraft', () => {
     const game = createGame('Island Air');
     const accepted = acceptMission(game, contracts[2].id);
-    expect(accepted).toEqual({ ...game, activeMissionId: contracts[2].id });
+    expect(accepted.company).toEqual(game.company);
+    expect(accepted.operationalTime).toEqual(game.operationalTime);
+    expect(accepted.aircraft).toEqual(game.aircraft);
     const cancelled = cancelMission(accepted);
-    expect(cancelled).toEqual(game);
-    expect(cancelMission(cancelled)).toEqual(game);
+    expect(cancelled.company).toEqual(game.company);
+    expect(cancelled.aircraft).toEqual(game.aircraft);
+    expect(cancelled.operationalTime).toEqual(game.operationalTime);
+    expect(cancelled.flightHours).toBe(game.flightHours);
+    expect(cancelled.completedMissions).toBe(game.completedMissions);
+    expect(cancelled.activeMissionId).toBeNull();
+    expect(cancelMission(cancelled)).toEqual(cancelled);
     expect(acceptMission(cancelled, contracts[2].id).activeMissionId).toBe(contracts[2].id);
   });
   it('restores active and cancelled mission state through storage and JSON backups', () => {
     const store = new Map<string, string>();
     vi.stubGlobal('localStorage', { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => store.set(key, value) });
-    for (const contract of contracts) {
+    for (const contract of contracts.filter(c => c.origin === 'PADQ')) {
       const accepted = acceptMission(createGame('Island Air'), contract.id);
       localSaveRepository.save(accepted);
       expect(localSaveRepository.load()).toEqual(accepted);
@@ -81,8 +88,8 @@ describe('dispatch state and compatibility', () => {
     for (const id of ['missing-mission', 3, {}, false]) expect(() => parseSave(JSON.stringify({ ...createGame('Test'), activeMissionId: id }))).toThrow('unsupported mission');
   });
   it('defines five unique, complete Kodiak-area contract briefs', () => {
-    expect(contracts).toHaveLength(5);
-    expect(new Set(contracts.map(c => c.id)).size).toBe(5);
+    expect(contracts.filter(c => c.origin === 'PADQ')).toHaveLength(5);
+    expect(new Set(contracts.map(c => c.id)).size).toBe(contracts.length);
     for (const contract of contracts) {
       expect(contract.payloadLb).toBeGreaterThan(0); expect(contract.payout).toBeGreaterThan(0);
       expect(contract.distanceNm).toBeGreaterThan(0); expect(contract.distanceNm).toBeLessThan(100);

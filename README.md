@@ -1,38 +1,32 @@
-# AirTruckers · Alaska Operations
+# AirTruckers · Alaska Operations · Version 0.3
 
-A browser-based aviation career and company management companion for Microsoft Flight Simulator 2020 on Xbox. Version 0.2 provides a local, single-player foundation; it does not connect to or control MSFS.
+A browser-based aviation career and company management companion for Microsoft Flight Simulator 2020 on Xbox. Flights are flown in MSFS and reported manually here. No simulator telemetry, external AI service, backend or account is required.
 
-## Run locally
+## Run and validate
 
-Use Node.js 22 or newer (validated with Node 24) and npm.
+Use Node.js 22+ and npm (validated with Node 24).
 
 ```sh
 npm ci
 npm run dev
+npm test
+npm run build
+npm run preview
 ```
 
-Open the address Vite prints. For an iPad on your home network, open your development computer's LAN address on port 5173 in Safari; allow the port through your computer's firewall if needed. For reliable testing, use the deployed HTTPS site below.
+Vite prints the local development address; preview serves the production `dist` bundle. HTTPS is recommended with current Safari, Chrome or Firefox. Safari supports Web Locks from version 15.4 in secure contexts; older Safari and plain HTTP LAN addresses may not expose it. When Web Locks is missing or rejects access before the save starts, the app falls back automatically to IndexedDB transaction coordination. Company creation, drafts, final reports and other saves remain usable without Web Locks. Flight IDs use secure `crypto.getRandomValues`, not the secure-context-only `randomUUID` API. For actual iPad acceptance testing, use an HTTPS-hosted test copy when possible. Native controls, 16px report inputs, explicit labels and responsive single-column forms support touch and Safari; real iPad acceptance testing is still required.
 
-```sh
-npm test       # game defaults, clock, persistence and invalid-save handling
-npm run build # strict TypeScript check and production bundle
-npm run preview # locally serve the production build
-```
+## Existing company functionality
 
-## Version 0.2
+Create a company at Kodiak (PADQ), with $25,000 and one fully owned Cessna 208B Grand Caravan EX. One owner/pilot has an informational salary of $65,000 annually ($2,500 per biweekly period, 26 periods/year). Renaming preserves all progress. Dashboard, Aircraft and Company Settings remain available; Finances is a future-feature placeholder.
 
-- Create a named company at Kodiak (PADQ), with $25,000 and one fully owned Cessna 208B Grand Caravan EX.
-- Dashboard, aircraft details, company settings, and the initial Dispatch Center; Flight Operations, Finances and Flight Logbook remain future-feature placeholders.
-- One owner/pilot: $65,000 annually, paid biweekly (26 periods; $2,500 per period). Payroll is informational; no expenses are deducted in this version.
-- Starting reputation: neutral, 50/100. Missions and flight hours start at zero.
-- An operational clock, initially June 1, 2026 at 08:00 UTC. This is a fixed game date, not the current date. Settings can deliberately advance it by 1 hour, 6 hours, 1 day, or 7 days. Real time, browser reloads and time spent away never advance it. Flight completion is not implemented yet.
-- Automatic local saves after creation and every change. Rename the company without resetting anything. Export a versioned JSON backup from Settings or Dashboard. Backup import is not implemented yet; keep exports for future recovery tooling.
+Reputation starts at neutral 50/100; this release does not alter it. The operational clock starts at June 1, 2026 at 08:00 UTC and does not follow real time. It advances only through explicit Settings actions or a final flight report. No payroll deductions or operating expenses are implemented. Contract revenue belongs to the company, never the pilot's personal salary; fuel consumption does not charge money or create a fuel inventory.
 
-## Initial Dispatch Center
+## Dispatch and Flight Operations
 
-Five fictional, repeatable contract briefs originate at Kodiak (PADQ):
+Dispatch only shows explicitly defined contracts departing from the aircraft's current airport. The original five fictional Kodiak stories remain:
 
-| Contract | Destination | Type | Payload | Estimated distance | Proposed payout |
+| Contract | Destination | Type | Payload | Approximate distance | Company revenue on delivery |
 | --- | --- | --- | --- | --- | --- |
 | The cannery’s missing part | Larsen Bay (PALB) | Cargo | 780 lb | 50 NM | $1,450 |
 | A classroom worth of possibilities | Old Harbor (PADY) | Cargo | 540 lb | 44 NM | $1,250 |
@@ -40,50 +34,71 @@ Five fictional, repeatable contract briefs originate at Kodiak (PADQ):
 | The village gathering | Ouzinkie (4K5) | Passenger charter | 920 lb | 12 NM | $850 |
 | Field notes from the island | Port Lions (PORI) | Passenger charter | 840 lb | 24 NM | $1,150 |
 
-Each includes a dispatcher story, manifest and expandable operational considerations. Distances are approximate direct one-way legs, not flight plans. Passenger payloads include baggage/equipment. Scenarios are fictional; verify airports, weather, aircraft performance and navigation data independently in your simulator.
+Each destination has one explicitly defined fictional return contract to PADQ: cannery records (PALB, $1,000), visiting teachers (PADY, $1,050), tool cases (PAKH, $1,600), gathering guests (4K5, $700), or research samples (PORI, $800). No procedural or impossible origin routes are generated. Airports outside this set show a clear **no contracts** state. Repositioning is not implemented, so a diversion to an unsupported airport can leave the aircraft without further contracts in this release.
 
-Select one contract at a time. Cancel it without penalty to select another or reselect the same contract. Mission selection persists through reloads and is included in JSON backups as `activeMissionId`. The existing `airtruckers.save.v1` key and schema version remain unchanged: older Version 0.1 saves normalize to `activeMissionId: null` while preserving all progress. Unknown mission IDs are rejected without overwriting stored data. Contract IDs are persistent save references and must remain stable in future releases.
+1. **Select a contract.** Only one can be active. A unique flight-instance ID distinguishes repeated acceptances of the same contract. Cancellation is free and discards any saved report after confirmation.
+2. **Open Flight Operations** from the active contract or Dashboard. Review origin, destination, manifest, proposed revenue, approximate direct distance and operational considerations.
+3. **Enter planning estimates if known.** No verified aircraft time or fuel performance data is bundled. The optional planning section accepts the player's estimated minutes and fuel burn. Otherwise these remain unavailable, not invented. Planning estimates remain separate from reported actuals in the logbook and backup.
+4. **Enter the post-flight report.** Actual flight time is mandatory for submission, as whole minutes from 1 to 1,440. Optional consumed fuel accepts 0–10,000 pounds with up to two decimal places; blank means unknown, not zero. These are manual-entry sanity bounds, not aircraft operating limits. Enter delivery status, landing outcome, actual arrival airport and optional pilot notes (2,000 characters maximum). Airport codes accept 3–4 letters/numbers; code existence is not checked against a worldwide database.
+5. **Save Flight — Finish Later.** Saves a local draft, including blank time if not yet known, without revenue, mission completion, aircraft movement, hour accumulation or clock advancement. Save before leaving the screen or closing the browser. Typing alone does not save report edits. Reopen Flight Operations after refresh to continue.
+6. **Submit Flight Report.** Review a separate confirmation screen. Nothing happens until **Confirm & submit report**. A completed delivery must arrive at the contracted airport. Submission records an immutable report snapshot, credits the proposed revenue to company cash once, increments completed missions once, updates aircraft and company flying hours, moves the aircraft to the reported arrival, adds the reported minutes to the current operational clock and clears the active mission/draft. Logbook UTC timestamps describe game time at submission, not real-world takeoff/landing or telemetry.
 
-**Scope:** no flight completion, payouts, aircraft movement, mission-driven clock advancement, contract expiry or mission history. Displayed rewards are informational. The manual Settings clock remains available, independent of contracts. Backup import remains future work.
+### Diversions, incomplete deliveries and hard landings
 
-## Manual acceptance checks
+A diversion requires a different arrival airport; an incomplete delivery may be reported at any arrival, including the contracted destination. Both close the active mission and record the flown hours, elapsed game time and actual arrival **without revenue or an increment to successful completed missions**. No later resumption of the same delivery, cargo inventory or partial payment exists yet.
 
-1. Create a company; confirm $25,000, PADQ, an owned Caravan, airworthy status, zero missions and hours, and one owner/pilot in Settings.
-2. Rename the company in Settings. Return to Dashboard and refresh: the new name and all balances should remain.
-3. Leave the tab open or close and reopen it: the operational date must not change. Advance by one day in Settings: exactly 24 hours should be added, with no cash deduction.
-4. Export a backup. Check that the JSON contains `version: 1`, company, aircraft, pilots, and `operationalTime` matching the screen.
-5. Check all navigation destinations; Flight Operations, Finances and Flight Logbook should be clearly marked as future features. Dispatch should list all five fictional contracts.
-6. Test portrait/landscape Safari on iPad and a narrow phone screen. Navigation collapses to a menu on phones; forms have labels and controls support keyboard focus.
-7. In a separate browser profile, block site storage. A save failure should show a warning and offer export; it must not claim the game is saved. A corrupt existing save should produce a recovery warning rather than silently overwrite it.
+A hard landing is a separate outcome and is preserved even if the delivery was completed. A completed delivery after a hard landing receives the contract revenue. A hard diversion or incomplete delivery does not. Mara acknowledges it and the logbook flags it. Maintenance status remains unchanged: there is no automatic damage, grounding, repair charge or maintenance simulation. Assess the aircraft in MSFS before further flying.
 
-8. Open Dispatch, expand a brief, select a contract, and verify other selection buttons are disabled. Refresh and return to Dispatch: the same contract should be active. Dashboard should also name it.
-9. Rename the company and advance the Settings clock while a mission is selected: selection remains. Export a backup and verify `activeMissionId` matches the selected card.
-10. Cancel the active mission: all five contracts should become selectable, with no change to cash, reputation, aircraft location/hours or flight totals. Refresh and verify cancellation persists.
-11. Test a copy of a Version 0.1 save (no `activeMissionId` field): company progress should load unchanged with no active contract. Do not modify your only copy of a save during testing.
+## Dispatcher Mara
 
-Automated validation includes ten domain tests and a production build. The implementation was also checked in Chromium with touch emulation at 1024, 768 and 390px: creation, renaming, deliberate clock advancement, reload persistence, backup download, mobile navigation and horizontal overflow. Version 0.2 browser checks also verified legacy-save loading, five contract briefs, exclusive selection, reload persistence, cancellation with unchanged progress, re-selection and mission IDs in downloaded backups. Real iPad Safari remains a device acceptance check.
+Short, local rule-based acknowledgments react to contract type, saved drafts, cancellation, delivery outcome, hard landings and estimates versus reported time/fuel. More than 25% above a positive player estimate triggers a planning-review comment, never a financial penalty or claim about aircraft performance. No comparison is made for unavailable estimates. Outcome and hard-landing messages take priority over performance commentary. Each context has three variants; a persisted six-message ID history avoids recent repetition and falls back to the least recently used variant when all variants have been used. No external AI API is called.
 
-## Free static hosting
+## Persistence, migration and duplicate protection
 
-No backend, credentials, or paid services are required. Push this repository to GitHub, then connect it to a free static host such as Cloudflare Pages or Netlify:
+The original `airtruckers.save.v1` storage key and `version: 1` remain stable. Version 0.1/v0.2 saves normalize missing flight fields without resetting names, cash, aircraft, pilots, reputation, totals or clock. Accepted v0.2 missions receive deterministic migration IDs; past aggregate flights are preserved without fabricating historical logbook entries. New acceptances get unique IDs.
 
-- Framework: Vite / React
-- Install: `npm ci`
-- Build: `npm run build`
-- Output/publish directory: `dist`
-- Use Node.js 22 or newer.
+A single local-storage document contains company state, pending report, active flight-instance ID, logbook, dialogue history and save revision. An IndexedDB read/write transaction coordinates every save across tabs, including clients that additionally use Web Locks. The coordination database contains no game data; the single local-storage document remains authoritative. A transaction serializes the synchronous snapshot check and local-storage write; local-storage leases or check-then-write alone are not used as locks. Each write checks the loaded snapshot against current storage. A stale tab must refresh rather than overwrite a newer report or credit revenue again. Missing/unsupported Web Locks uses the same IndexedDB gate, so mixed clients share protection. Web Locks rejection falls back only if the protected callback has not started; failed writes are never automatically retried. A successful local-storage write is acknowledged immediately, even if the coordination transaction later aborts, because retrying an already-applied payment would be misleading. The domain model also rejects already-recorded flight IDs. Final submission stays on screen if saving fails; company state is not updated in memory or paid until storage succeeds. Invalid numeric inputs, incompatible partial saves and duplicate log entries are rejected rather than silently discarded.
 
-For GitHub Pages, build with `npm ci && npm run build` in Actions and upload/deploy `dist` using the official Pages actions. The Vite `base: './'` configuration supports repository subpaths. Navigation uses application state, so no server-side route fallback is necessary. Never deploy `node_modules` or the development server. Verify the deployed HTTPS site on Safari with the manual checks above.
+If IndexedDB is also unavailable, blocked, denied or interrupted before the write, saving fails closed with an error; existing company data remains readable/exportable and report inputs stay on screen. Enable site storage or close blocking tabs and retry. There is no unsafe uncoordinated-write fallback. A storage quota failure likewise preserves the previous save. All tabs should reload the current application before editing; older application versions cannot participate in this coordination protocol.
 
-Local saves belong to the browser profile **and origin** (scheme, host and port). A new deployment domain, changing ports, another device, private browsing, or cleared site data will not carry the save across. Export before clearing storage or switching sites. Cloud sync and backup import are planned, not available.
+Company mutations save automatically; report edits require the explicit draft save or final submission. Export JSON from Dashboard or Settings; saved drafts and complete logbook snapshots are included. Export does not include unsaved form edits. Backups remain browser-local JSON; **import and cloud sync are not implemented**. A different device, browser profile, origin/port, private browsing or cleared site data may not have the save. Export before clearing storage or changing sites. Avoid editing the same company in old application versions: backward loading of newer flight data in v0.1/v0.2 is not supported.
 
-## Architecture
+## Acceptance testing
 
-- `src/game.ts`: versioned game model, initial state, pure time advancement, save validation, and a local save repository adapter. Future cloud storage can implement this boundary. Aircraft and pilots are arrays to accommodate later expansion.
-- `src/missions.ts`: stable IDs and five fictional Kodiak-area contract briefs.
-- `src/Dispatch.tsx`: responsive mission board, active selection and cancellation.
-- `src/main.tsx`: company creation, workspace navigation, dashboard, fleet and settings. All current game mutations pass through one save function.
-- `src/style.css`: responsive tablet/desktop/phone interface. Decorative landscape is inline SVG; no map service is required. Optional Google Fonts fall back to system fonts when unavailable.
-- `src/game.test.ts`: domain and persistence regression tests.
+Automated tests cover company defaults and rename persistence, deliberate clock advancement, validation, older-save migration, drafts, revenue, hours, location and clock updates, completed/incomplete/diverted reports, hard landing, duplicate and stale-tab protection, failed-save retry, fallback/mixed-client coordination, secure IDs without randomUUID, defined routes and dispatcher variants. Run `npm test` and `npm run build` before review.
 
-Future work: flight completion, interactive Caravan checklists, chart access, separate pilot accounts, operational-time payroll, hiring, aircraft purchases and multiple bases. No advanced gameplay or live simulator telemetry is implemented in this foundation.
+Manual checks on desktop and iPad Safari:
+
+1. Create a company, verify the Caravan at PADQ and $25,000, rename it, then refresh. Confirm progress remains.
+2. Select a Kodiak contract and open Flight Operations. Submit with blank, negative or malformed time/fuel: it must refuse. Unknown fuel can remain blank.
+3. Enter minutes, optional fuel/notes and different planning estimates. Save Flight; cash, hours, location and clock must remain unchanged. Refresh and verify the draft survives.
+4. Choose Submit, then Back to edit: no effects. Confirm final submission: verify one company payment, correct destination, exactly reported minutes added, aircraft/company hours and one successful logbook entry. Verify estimates differ from actuals in the logbook.
+5. In a second tab opened before final submission, try submitting the same draft or renaming after the first tab submits. It must refuse with a stale-save message. Refresh; no duplicate payment or report should exist.
+6. Export and inspect JSON for `pendingReport`, `activeFlightId`, `logbook`, actual/estimated values and revision. An old-save copy with no new flight fields should load without losing progress. Do not test by editing your only saved copy.
+7. From the destination, verify only the defined return route appears. Submit a diversion or incomplete delivery: record time/hours/location, clear the mission and pay nothing. Mark a hard landing and verify its log entry without automatic maintenance changes.
+8. Divert to an unsupported code such as PANC: verify the no-contracts state. This is a known gameplay dead end until repositioning is implemented.
+9. Repeat draft saves: Mara should vary her acknowledgment. Compare different delivery/landing outcomes and above-plan reports without expecting extra penalties.
+10. In an isolated test browser, hide `navigator.locks` (and `crypto.randomUUID`) before loading. Create a company, save/reload a draft, submit, and repeat the stale-tab check: the full workflow must still work. Repeat with one tab exposing Web Locks and another hiding it.
+11. In an isolated test browser, simulate storage quota failure: final submission must not change the stored company or show success. Retry after resolving the failure; pay only once.
+12. Check portrait/landscape iPad and phone widths, touch controls, keyboard focus, readable fields, report confirmation and long notes. Browser refresh without explicit game actions must never advance time.
+
+Browser automation during development exercises draft refresh, validation, review/edit/confirmation, company revenue, stale-tab duplicate rejection, backup contents, destination dispatch, unpaid hard diversion and no-contracts handling. Chromium layout checks cover 1366, 1024, 768 and 390px. Chromium touch emulation is not an actual iPad Safari test.
+
+## Preparing free static hosting (no deployment performed)
+
+No credentials or paid backend are needed. After review/approval, use a static host such as Cloudflare Pages or Netlify with Node 22+, install `npm ci`, build `npm run build`, and publish directory `dist`. Use HTTPS when hosting; IndexedDB coordination supports browsers without Web Locks. For GitHub Pages use the official Pages Actions to upload/deploy `dist`; Vite's relative `base: './'` supports repository subpaths. Navigation is local application state, so no server route fallback is needed. Never deploy `node_modules` or the development server.
+
+## Architecture and limitations
+
+- `src/game.ts`: versioned state, migrations, flight transitions and atomic local-storage adapter.
+- `src/storageGate.ts`: shared IndexedDB transaction gate, optional Web Locks and safe fallback.
+- `src/reports.ts`: report types and shared input validation.
+- `src/missions.ts`: stable contract IDs, explicit origins and route catalog.
+- `src/dialogue.ts`: deterministic context selection, variants and recent-history avoidance.
+- `src/FlightOperations.tsx`: draft form, confirmation and logbook views.
+- `src/Dispatch.tsx`: current-airport contract board and accepted-flight access.
+- `src/main.tsx`: workspace shell, company creation, dashboard, fleet, settings and shared save boundary.
+- `src/style.css`: responsive interface with system-font fallbacks for optional Google Fonts.
+- `src/game.test.ts`, `src/flights.test.ts`: domain, migration and persistence regression tests.
+
+Version 0.3 uses only the first aircraft and owner/pilot. No simulator connection, verified performance calculations, airport database, repositioning, interrupted-delivery resumption, automatic payroll/expenses, aircraft purchases, employee hiring, interactive checklists, approach charts, logbook editing/undo, backup import or cloud saving is implemented. Clearing an accepted mission is a cancellation, not flight reporting; only submit a report when the flying should count.
