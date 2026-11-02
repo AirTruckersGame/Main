@@ -1,3 +1,4 @@
+import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { acceptMission, cancelMission, createGame, localSaveRepository, parseSave, reportFor, saveFlightDraft, submitFlightReport, SAVE_KEY } from './game';
 import { availableContracts, contracts } from './missions';
@@ -7,6 +8,7 @@ afterEach(() => vi.unstubAllGlobals());
 const accepted = () => acceptMission(createGame('Kodiak Air'), 'kodiak-01');
 const reported = (flightId: string): FlightDraft => ({ flightId, minutes: '45', fuelLb: '180.5', estimatedMinutes: '30', estimatedFuelLb: '150', arrival: 'PALB', delivery: 'completed', landing: 'normal', notes: 'Coastal headwind.' });
 function storage() {
+  vi.stubGlobal('indexedDB', new IDBFactory());
   const store = new Map<string, string>();
   const setItem = vi.fn((key: string, value: string) => { store.set(key, value); });
   vi.stubGlobal('localStorage', { getItem: (key: string) => store.get(key) ?? null, setItem });
@@ -157,9 +159,9 @@ describe('migration and atomic local commits', () => {
     store.set(SAVE_KEY, 'damaged');
     await expect(localSaveRepository.commit(game, next)).rejects.toThrow(); expect(store.get(SAVE_KEY)).toBe('damaged');
   });
-  it('refuses unsafe saving without Web Locks and leaves storage unchanged', async () => {
-    const { store } = storage(); vi.stubGlobal('navigator', {});
-    await expect(localSaveRepository.commit(null, createGame('Test'))).rejects.toThrow('HTTPS');
+  it('retains read and export data but refuses unsafe writes when both coordination APIs are unavailable', async () => {
+    const { store } = storage(); vi.stubGlobal('navigator', {}); vi.stubGlobal('indexedDB', undefined);
+    await expect(localSaveRepository.commit(null, createGame('Test'))).rejects.toThrow('Enable site storage');
     expect(store.has(SAVE_KEY)).toBe(false);
   });
 });
@@ -187,5 +189,65 @@ describe('dispatcher dialogue', () => {
     expect(restored.recentDialogue).toEqual(draft.recentDialogue); expect(restored.dispatcher).toEqual(draft.dispatcher);
     expect(saveFlightDraft(restored, reportFor(restored)).dispatcher?.id).not.toBe(restored.dispatcher?.id);
     expect(restored.operationalTime).toBe(game.operationalTime);
+  });
+});
+
+describe('Safari-compatible storage fallback', () => {
+  it.each(['missing', 'rejected', 'native'] as const)('creates, saves drafts, reloads and submits exactly once with %s Web Locks', async mode => {
+    storage();
+    if (mode === 'missing') vi.stubGlobal('navigator', {});
+    if (mode === 'rejected') vi.stubGlobal('navigator', { locks: { request: () => Promise.reject(new DOMException('Not supported', 'NotSupportedError')) } });
+    const created = await localSaveRepository.commit(null, createGame('Safari Air'));
+    const game = await localSaveRepository.commit(created, acceptMission(created, 'kodiak-01'));
+    const draft = reported(game.activeFlightId!);
+    const saved = await localSaveRepository.commit(game, saveFlightDraft(game, draft));
+    const reloaded = localSaveRepository.load()!;
+    expect(reloaded).toEqual(saved);
+    expect(reloaded.pendingReport).toEqual(draft);
+    for (const key of ['company', 'aircraft', 'completedMissions', 'flightHours', 'operationalTime', 'logbook'] as const) expect(saved[key]).toEqual(game[key]);
+    const next = submitFlightReport(reloaded, draft);
+    const results = await Promise.allSettled([localSaveRepository.commit(reloaded, next), localSaveRepository.commit(reloaded, next)]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+    const finished = localSaveRepository.load()!;
+    expect(finished.company.cash).toBe(26450); expect(finished.logbook).toHaveLength(1);
+    expect(finished.aircraft[0].location).toBe('PALB'); expect(finished.operationalTime).toBe('2026-06-01T08:45:00.000Z');
+    expect(() => submitFlightReport(finished, draft)).toThrow('already been submitted');
+  });
+  it('serializes mixed clients with and without Web Locks using the same database gate', async () => {
+    storage(); const game = accepted(); localSaveRepository.save(game);
+    let entered = false;
+    const nativeLocks = { request: async (_: string, action: () => unknown) => { entered = true; return action(); } };
+    vi.stubGlobal('navigator', { locks: nativeLocks });
+    const next = submitFlightReport(game, reported(game.activeFlightId!));
+    const native = localSaveRepository.commit(game, next);
+    expect(entered).toBe(true);
+    vi.stubGlobal('navigator', {});
+    const fallback = localSaveRepository.commit(game, next);
+    const results = await Promise.allSettled([native, fallback]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(localSaveRepository.load()?.company.cash).toBe(26450); expect(localSaveRepository.load()?.logbook).toHaveLength(1);
+  });
+  it('does not retry the write when an application error occurs inside Web Locks', async () => {
+    const { setItem } = storage(); const game = accepted(); localSaveRepository.save(game);
+    setItem.mockClear(); setItem.mockImplementationOnce(() => { throw new Error('Quota exceeded'); });
+    await expect(localSaveRepository.commit(game, submitFlightReport(game, reported(game.activeFlightId!)))).rejects.toThrow('Quota exceeded');
+    expect(setItem).toHaveBeenCalledTimes(1); expect(localSaveRepository.load()).toEqual(game);
+  });
+  it('rejects stale edits and preserves failed/corrupt storage in fallback mode', async () => {
+    const { store, setItem } = storage(); vi.stubGlobal('navigator', {});
+    const game = accepted(); localSaveRepository.save(game);
+    const draft = saveFlightDraft(game, reported(game.activeFlightId!));
+    setItem.mockImplementationOnce(() => { throw new Error('Quota exceeded'); });
+    await expect(localSaveRepository.commit(game, draft)).rejects.toThrow('Quota exceeded'); expect(localSaveRepository.load()).toEqual(game);
+    const saved = await localSaveRepository.commit(game, draft);
+    await expect(localSaveRepository.commit(game, cancelMission(game))).rejects.toThrow('another tab'); expect(localSaveRepository.load()).toEqual(saved);
+    store.set(SAVE_KEY, 'corrupt'); await expect(localSaveRepository.commit(saved, saved)).rejects.toThrow(); expect(store.get(SAVE_KEY)).toBe('corrupt');
+  });
+  it('uses secure random IDs even when crypto.randomUUID is unavailable', () => {
+    const getRandomValues = crypto.getRandomValues.bind(crypto);
+    vi.stubGlobal('crypto', { getRandomValues });
+    const first = accepted(), second = accepted();
+    expect(first.activeFlightId).toMatch(/^[a-f0-9]{32}$/); expect(second.activeFlightId).not.toBe(first.activeFlightId);
   });
 });

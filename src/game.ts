@@ -1,3 +1,4 @@
+import { withSaveCoordination } from './storageGate';
 import { findContract } from './missions';
 import { blankDraft, numericInput, validateDraft, type FlightDraft, type FlightEntry } from './reports';
 import { selectDialogue, type DialogueEvent, type DispatcherLine } from './dialogue';
@@ -52,12 +53,18 @@ function acknowledge(game: Game, event: DialogueEvent, report?: FlightDraft): Ga
   const line = selectDialogue(event, game.activeMissionId ? findContract(game.activeMissionId) : undefined, report, game.recentDialogue);
   return { ...game, dispatcher: line, recentDialogue: [line.id, ...game.recentDialogue.filter(id => id !== line.id)].slice(0, 6) };
 }
+function newFlightId(): string {
+  // getRandomValues also works in older Safari and non-secure LAN contexts where
+  // randomUUID/Web Locks may be absent. Never use timestamps or Math.random as IDs.
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+}
 export function acceptMission(game: Game, id: string): Game {
   if (game.activeMissionId !== null) throw new Error('Cancel your active mission before selecting another contract.');
   const contract = findContract(id);
   if (!contract) throw new Error('Unknown contract.');
   if (contract.origin !== game.aircraft[0].location) throw new Error('Contract does not depart from the aircraft’s current airport.');
-  return acknowledge({ ...game, activeMissionId: id, activeFlightId: crypto.randomUUID(), pendingReport: null }, 'accepted');
+  return acknowledge({ ...game, activeMissionId: id, activeFlightId: newFlightId(), pendingReport: null }, 'accepted');
 }
 export function cancelMission(game: Game): Game {
   if (!game.activeMissionId) return game;
@@ -92,8 +99,7 @@ export const localSaveRepository = {
   load(): Game | null { const raw = localStorage.getItem(SAVE_KEY); return raw === null ? null : parseSave(raw); },
   save(game: Game) { localStorage.setItem(SAVE_KEY, JSON.stringify(game)); },
   async commit(expected: Game | null, next: Game): Promise<Game> {
-    if (!globalThis.navigator?.locks) throw new Error('Safe saving requires a modern browser on HTTPS (or localhost). Export a backup and use current Safari, Chrome or Firefox.');
-    return navigator.locks.request(SAVE_KEY, () => {
+    return withSaveCoordination(SAVE_KEY, () => {
       const current = localSaveRepository.load();
       if (JSON.stringify(current) !== JSON.stringify(expected)) throw new Error('The save changed in another tab. Refresh before continuing; no changes were applied.');
       const committed = parseSave(JSON.stringify({ ...next, revision: (current?.revision ?? 0) + 1 }));

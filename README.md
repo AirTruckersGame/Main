@@ -14,7 +14,7 @@ npm run build
 npm run preview
 ```
 
-Vite prints the local development address; preview serves the production `dist` bundle. Use **HTTPS or localhost** with a current Safari, Chrome or Firefox: saving uses the Web Locks API to serialize writes across tabs. Safari supports Web Locks from version 15.4. A plain HTTP LAN address on an iPad is not a secure context and will refuse safe saving. For an actual iPad, use an HTTPS-hosted test copy. Native controls, 16px report inputs, explicit labels and responsive single-column forms support touch and Safari; real iPad acceptance testing is still required.
+Vite prints the local development address; preview serves the production `dist` bundle. HTTPS is recommended with current Safari, Chrome or Firefox. Safari supports Web Locks from version 15.4 in secure contexts; older Safari and plain HTTP LAN addresses may not expose it. When Web Locks is missing or rejects access before the save starts, the app falls back automatically to IndexedDB transaction coordination. Company creation, drafts, final reports and other saves remain usable without Web Locks. Flight IDs use secure `crypto.getRandomValues`, not the secure-context-only `randomUUID` API. For actual iPad acceptance testing, use an HTTPS-hosted test copy when possible. Native controls, 16px report inputs, explicit labels and responsive single-column forms support touch and Safari; real iPad acceptance testing is still required.
 
 ## Existing company functionality
 
@@ -57,13 +57,15 @@ Short, local rule-based acknowledgments react to contract type, saved drafts, ca
 
 The original `airtruckers.save.v1` storage key and `version: 1` remain stable. Version 0.1/v0.2 saves normalize missing flight fields without resetting names, cash, aircraft, pilots, reputation, totals or clock. Accepted v0.2 missions receive deterministic migration IDs; past aggregate flights are preserved without fabricating historical logbook entries. New acceptances get unique IDs.
 
-A single local-storage document contains company state, pending report, active flight-instance ID, logbook, dialogue history and save revision. Web Locks serialize writes across tabs; each write checks the loaded snapshot against current storage. A stale tab must refresh rather than overwrite a newer report or credit revenue again. The domain model also rejects already-recorded flight IDs. Final submission stays on screen if saving fails; company state is not updated in memory or paid until storage succeeds. Invalid numeric inputs, incompatible partial saves and duplicate log entries are rejected rather than silently discarded.
+A single local-storage document contains company state, pending report, active flight-instance ID, logbook, dialogue history and save revision. An IndexedDB read/write transaction coordinates every save across tabs, including clients that additionally use Web Locks. The coordination database contains no game data; the single local-storage document remains authoritative. A transaction serializes the synchronous snapshot check and local-storage write; local-storage leases or check-then-write alone are not used as locks. Each write checks the loaded snapshot against current storage. A stale tab must refresh rather than overwrite a newer report or credit revenue again. Missing/unsupported Web Locks uses the same IndexedDB gate, so mixed clients share protection. Web Locks rejection falls back only if the protected callback has not started; failed writes are never automatically retried. A successful local-storage write is acknowledged immediately, even if the coordination transaction later aborts, because retrying an already-applied payment would be misleading. The domain model also rejects already-recorded flight IDs. Final submission stays on screen if saving fails; company state is not updated in memory or paid until storage succeeds. Invalid numeric inputs, incompatible partial saves and duplicate log entries are rejected rather than silently discarded.
+
+If IndexedDB is also unavailable, blocked, denied or interrupted before the write, saving fails closed with an error; existing company data remains readable/exportable and report inputs stay on screen. Enable site storage or close blocking tabs and retry. There is no unsafe uncoordinated-write fallback. A storage quota failure likewise preserves the previous save. All tabs should reload the current application before editing; older application versions cannot participate in this coordination protocol.
 
 Company mutations save automatically; report edits require the explicit draft save or final submission. Export JSON from Dashboard or Settings; saved drafts and complete logbook snapshots are included. Export does not include unsaved form edits. Backups remain browser-local JSON; **import and cloud sync are not implemented**. A different device, browser profile, origin/port, private browsing or cleared site data may not have the save. Export before clearing storage or changing sites. Avoid editing the same company in old application versions: backward loading of newer flight data in v0.1/v0.2 is not supported.
 
 ## Acceptance testing
 
-Automated tests cover company defaults and rename persistence, deliberate clock advancement, validation, older-save migration, drafts, revenue, hours, location and clock updates, completed/incomplete/diverted reports, hard landing, duplicate and stale-tab protection, failed-save retry, defined routes and dispatcher variants. Run `npm test` and `npm run build` before review.
+Automated tests cover company defaults and rename persistence, deliberate clock advancement, validation, older-save migration, drafts, revenue, hours, location and clock updates, completed/incomplete/diverted reports, hard landing, duplicate and stale-tab protection, failed-save retry, fallback/mixed-client coordination, secure IDs without randomUUID, defined routes and dispatcher variants. Run `npm test` and `npm run build` before review.
 
 Manual checks on desktop and iPad Safari:
 
@@ -76,18 +78,20 @@ Manual checks on desktop and iPad Safari:
 7. From the destination, verify only the defined return route appears. Submit a diversion or incomplete delivery: record time/hours/location, clear the mission and pay nothing. Mark a hard landing and verify its log entry without automatic maintenance changes.
 8. Divert to an unsupported code such as PANC: verify the no-contracts state. This is a known gameplay dead end until repositioning is implemented.
 9. Repeat draft saves: Mara should vary her acknowledgment. Compare different delivery/landing outcomes and above-plan reports without expecting extra penalties.
-10. In an isolated test browser, simulate storage quota failure: final submission must not change the stored company or show success. Retry after resolving the failure; pay only once.
-11. Check portrait/landscape iPad and phone widths, touch controls, keyboard focus, readable fields, report confirmation and long notes. Browser refresh without explicit game actions must never advance time.
+10. In an isolated test browser, hide `navigator.locks` (and `crypto.randomUUID`) before loading. Create a company, save/reload a draft, submit, and repeat the stale-tab check: the full workflow must still work. Repeat with one tab exposing Web Locks and another hiding it.
+11. In an isolated test browser, simulate storage quota failure: final submission must not change the stored company or show success. Retry after resolving the failure; pay only once.
+12. Check portrait/landscape iPad and phone widths, touch controls, keyboard focus, readable fields, report confirmation and long notes. Browser refresh without explicit game actions must never advance time.
 
 Browser automation during development exercises draft refresh, validation, review/edit/confirmation, company revenue, stale-tab duplicate rejection, backup contents, destination dispatch, unpaid hard diversion and no-contracts handling. Chromium layout checks cover 1366, 1024, 768 and 390px. Chromium touch emulation is not an actual iPad Safari test.
 
 ## Preparing free static hosting (no deployment performed)
 
-No credentials or paid backend are needed. After review/approval, use a static host such as Cloudflare Pages or Netlify with Node 22+, install `npm ci`, build `npm run build`, and publish directory `dist`. Use HTTPS for safe saves. For GitHub Pages use the official Pages Actions to upload/deploy `dist`; Vite's relative `base: './'` supports repository subpaths. Navigation is local application state, so no server route fallback is needed. Never deploy `node_modules` or the development server.
+No credentials or paid backend are needed. After review/approval, use a static host such as Cloudflare Pages or Netlify with Node 22+, install `npm ci`, build `npm run build`, and publish directory `dist`. Use HTTPS when hosting; IndexedDB coordination supports browsers without Web Locks. For GitHub Pages use the official Pages Actions to upload/deploy `dist`; Vite's relative `base: './'` supports repository subpaths. Navigation is local application state, so no server route fallback is needed. Never deploy `node_modules` or the development server.
 
 ## Architecture and limitations
 
 - `src/game.ts`: versioned state, migrations, flight transitions and atomic local-storage adapter.
+- `src/storageGate.ts`: shared IndexedDB transaction gate, optional Web Locks and safe fallback.
 - `src/reports.ts`: report types and shared input validation.
 - `src/missions.ts`: stable contract IDs, explicit origins and route catalog.
 - `src/dialogue.ts`: deterministic context selection, variants and recent-history avoidance.
