@@ -1,0 +1,41 @@
+[
+  {
+    "icaoId": "PADQ",
+    "receiptTime": "2026-11-02T23:56:31.641Z",
+    "obsTime": 1793663580,
+    "reportTime": "2026-11-03T00:00:00.000Z",
+    "temp": 6.1,
+    "dewp": 3.9,
+    "wdir": 120,
+    "wspd": 26,
+    "wgst": 35,
+    "visib": 8,
+    "altim": 988.6,
+    "slp": 988.4,
+    "qcField": 4,
+    "wxString": "-RA",
+    "presTend": -2.6,
+    "maxT": 6.7,
+    "minT": 5,
+    "precip": 0.03,
+    "pcp6hr": 0.12,
+    "metarType": "METAR",
+    "rawOb": "METAR PADQ 022353Z 12026G35KT 8SM -RA BKN017 OVC021 06/04 A2919 RMK AO2 PK WND 12035/2349 SLP884 P0003 60012 T00610039 10067 20050 58026",
+    "lat": 57.7507,
+    "lon": -152.4881,
+    "elev": 5,
+    "name": "Kodiak Arpt, AK, US",
+    "cover": "OVC",
+    "clouds": [
+      {
+        "cover": "BKN",
+        "base": 1700
+      },
+      {
+        "cover": "OVC",
+        "base": 2100
+      }
+    ],
+    "fltCat": "MVFR"
+  }
+]

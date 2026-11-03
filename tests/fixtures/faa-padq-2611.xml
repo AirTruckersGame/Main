@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Official FAA index excerpt, retrieved 2026-11-03T00:41Z from https://aeronav.faa.gov/d-tpp/2611/xml_data/d-tpp_Metafile.xml . Historical regression data, never an application catalog. -->
+<digital_tpp cycle="2611" from_edate="0901Z  10/29/26" to_edate="0901Z  11/26/26">
+  <state_code ID="AK" state_fullname="ALASKA">
+    <city_name ID="KODIAK">
+      <airport_name ID="KODIAK" military="N" apt_ident="ADQ" icao_ident="PADQ" alnum="1238">
+        <record>
+          <chartseq>10100</chartseq>
+          <chart_code>MIN</chart_code>
+          <chart_name>TAKEOFF MINIMUMS</chart_name>
+          <useraction />
+          <pdf_name>AKTO.PDF</pdf_name>
+          <cn_flg>N</cn_flg>
+          <cnsection />
+          <cnpage />
+          <bvsection>L</bvsection>
+          <bvpage />
+          <procuid />
+          <two_colored>N</two_colored>
+          <civil />
+          <faanfd18 />
+          <copter />
+          <amdtnum />
+          <amdtdate />
+        </record>
+        <record>
+          <chartseq>10200</chartseq>
+          <chart_code>MIN</chart_code>
+          <chart_name>ALTERNATE MINIMUMS</chart_name>
+          <useraction />
+          <pdf_name>AKALT.PDF</pdf_name>
+          <cn_flg>N</cn_flg>
+          <cnsection />
+          <cnpage />
+          <bvsection>M</bvsection>
+          <bvpage />
+          <procuid />
+          <two_colored>N</two_colored>
+          <civil />
+          <faanfd18 />
+          <copter />
+          <amdtnum />
+          <amdtdate />
+        </record>
+        <record>
+          <chartseq>50750</chartseq>
+          <chart_code>IAP</chart_code>
+          <chart_name>ILS Y OR LOC Y RWY 26</chart_name>
+          <useraction />
+          <pdf_name>01238IYLY26.PDF</pdf_name>
+          <cn_flg>N</cn_flg>
+          <cnsection />
+          <cnpage />
+          <bvsection />
+          <bvpage>341</bvpage>
+          <procuid>17372</procuid>
+          <two_colored>Y</two_colored>
+          <civil>C</civil>
+          <faanfd18 />
+          <copter />
+          <amdtnum>4A</amdtnum>
+          <amdtdate>10/02/2025</amdtdate>
+        </record>
+        <record>
+          <chartseq>53525</chartseq>
+          <chart_code>IAP</chart_code>
+          <chart_name>RNAV (GPS) RWY 26</chart_name>
+          <useraction />
+          <pdf_name>01238R26.PDF</pdf_name>
+          <cn_flg>N</cn_flg>
+          <cnsection />
+          <cnpage />
+          <bvsection />
+          <bvpage>342</bvpage>
+          <procuid>17371</procuid>
+          <two_colored>Y</two_colored>
+          <civil>C</civil>
+          <faanfd18 />
+          <copter />
+          <amdtnum>3B</amdtnum>
+          <amdtdate>08/07/2025</amdtdate>
+        </record>
+        <record>
+          <chartseq>55800</chartseq>
+          <chart_code>IAP</chart_code>
+          <chart_name>VOR RWY 26</chart_name>
+          <useraction />
+          <pdf_name>01238V26.PDF</pdf_name>
+          <cn_flg>N</cn_flg>
+          <cnsection />
+          <cnpage />
+          <bvsection />
+          <bvpage>343</bvpage>
+          <procuid>17370</procuid>
+          <two_colored>Y</two_colored>
+          <civil>C</civil>
+          <faanfd18 />
+          <copter />
+          <amdtnum>3A</amdtnum>
+          <amdtdate>06/20/2019</amdtdate>
+        </record>
+        <record>
+          <chartseq>70000</chartseq>
+          <chart_code>APD</chart_code>
+          <chart_name>AIRPORT DIAGRAM</chart_name>
+          <useraction />
+          <pdf_name>01238AD.PDF</pdf_name>
+          <cn_flg>N</cn_flg>
+          <cnsection />
+          <cnpage />
+          <bvsection />
+          <bvpage>344</bvpage>
+          <procuid>9584</procuid>
+          <two_colored>N</two_colored>
+          <civil>C</civil>
+          <faanfd18 />
+          <copter />
+          <amdtnum />
+          <amdtdate />
+        </record>
+        <record>
+          <chartseq>90000</chartseq>
+          <chart_code>ODP</chart_code>
+          <chart_name>KODIAK SEVEN (OBSTACLE)</chart_name>
+          <useraction />
+          <pdf_name>01238KODIAK.PDF</pdf_name>
+          <cn_flg>N</cn_flg>
+          <cnsection />
+          <cnpage />
+          <bvsection />
+          <bvpage>345</bvpage>
+          <procuid>4427</procuid>
+          <two_colored>N</two_colored>
+          <civil>C</civil>
+          <faanfd18>KODI7.ODK</faanfd18>
+          <copter>N</copter>
+          <amdtnum />
+          <amdtdate />
+        </record>
+        <record>
+          <chartseq>90000</chartseq>
+          <chart_code>ODP</chart_code>
+          <chart_name>KODIAK SEVEN (OBSTACLE), CONT.1</chart_name>
+          <useraction />
+          <pdf_name>01238KODIAK_C.PDF</pdf_name>
+          <cn_flg>N</cn_flg>
+          <cnsection />
+          <cnpage />
+          <bvsection />
+          <bvpage>346</bvpage>
+          <procuid>4427</procuid>
+          <two_colored>N</two_colored>
+          <civil>C</civil>
+          <faanfd18>KODI7.ODK</faanfd18>
+          <copter>N</copter>
+          <amdtnum />
+          <amdtdate />
+        </record>
+      </airport_name>
+    </city_name>
+  </state_code>
+</digital_tpp>

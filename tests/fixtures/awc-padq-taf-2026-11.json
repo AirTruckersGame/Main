@@ -1,0 +1,121 @@
+[
+  {
+    "icaoId": "PADQ",
+    "dbPopTime": "2026-11-02T23:40:21.752Z",
+    "bulletinTime": "2026-11-02T23:40:00.000Z",
+    "issueTime": "2026-11-02T23:40:00.000Z",
+    "validTimeFrom": 1793664000,
+    "validTimeTo": 1793750400,
+    "rawTAF": "TAF PADQ 022340Z 0300/0324 12020G30KT 6SM -RA BR SCT007 BKN015 OVC025 FM030800 07009KT P6SM VCSH SCT015 OVC025 FM031800 36009KT 4SM -RA BR FEW007 OVC015",
+    "mostRecent": 1,
+    "remarks": "",
+    "lat": 57.75072,
+    "lon": -152.48809,
+    "elev": 5,
+    "prior": 2,
+    "name": "Kodiak Arpt",
+    "fcsts": [
+      {
+        "timeFrom": 1793664000,
+        "timeTo": 1793692800,
+        "timeBec": null,
+        "fcstChange": null,
+        "probability": null,
+        "wdir": 120,
+        "wspd": 20,
+        "wgst": 30,
+        "wshearHgt": null,
+        "wshearDir": null,
+        "wshearSpd": null,
+        "visib": 6,
+        "altim": null,
+        "vertVis": null,
+        "wxString": "-RA BR",
+        "notDecoded": null,
+        "clouds": [
+          {
+            "cover": "SCT",
+            "base": 700,
+            "type": null
+          },
+          {
+            "cover": "BKN",
+            "base": 1500,
+            "type": null
+          },
+          {
+            "cover": "OVC",
+            "base": 2500,
+            "type": null
+          }
+        ],
+        "icgTurb": [],
+        "temp": []
+      },
+      {
+        "timeFrom": 1793692800,
+        "timeTo": 1793728800,
+        "timeBec": null,
+        "fcstChange": "FM",
+        "probability": null,
+        "wdir": 70,
+        "wspd": 9,
+        "wgst": null,
+        "wshearHgt": null,
+        "wshearDir": null,
+        "wshearSpd": null,
+        "visib": "6+",
+        "altim": null,
+        "vertVis": null,
+        "wxString": "VCSH",
+        "notDecoded": null,
+        "clouds": [
+          {
+            "cover": "SCT",
+            "base": 1500,
+            "type": null
+          },
+          {
+            "cover": "OVC",
+            "base": 2500,
+            "type": null
+          }
+        ],
+        "icgTurb": [],
+        "temp": []
+      },
+      {
+        "timeFrom": 1793728800,
+        "timeTo": 1793750400,
+        "timeBec": null,
+        "fcstChange": "FM",
+        "probability": null,
+        "wdir": 360,
+        "wspd": 9,
+        "wgst": null,
+        "wshearHgt": null,
+        "wshearDir": null,
+        "wshearSpd": null,
+        "visib": 4,
+        "altim": null,
+        "vertVis": null,
+        "wxString": "-RA BR",
+        "notDecoded": null,
+        "clouds": [
+          {
+            "cover": "FEW",
+            "base": 700,
+            "type": null
+          },
+          {
+            "cover": "OVC",
+            "base": 1500,
+            "type": null
+          }
+        ],
+        "icgTurb": [],
+        "temp": []
+      }
+    ]
+  }
+]

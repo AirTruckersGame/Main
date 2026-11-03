@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!-- Synthetic parser fixture only. NOT a real FAA procedure or catalog. Never shipped as application chart data. -->
+<digital_tpp cycle="2611" from_edate="0901Z 10/29/26" to_edate="0901Z 11/26/26">
+ <state_code ID="AK"><city_name ID="TEST CITY"><airport_name ID="TEST AIRPORT" apt_ident="ADQ" icao_ident="PADQ">
+  <record><chart_code>IAP</chart_code><chart_name>TEST APPROACH - FIXTURE ONLY</chart_name><pdf_name>TESTONLY.PDF</pdf_name></record>
+  <record><chart_code>APD</chart_code><chart_name>TEST DIAGRAM - FIXTURE ONLY</chart_name><pdf_name>TESTDIAGRAM.PDF</pdf_name></record>
+  <record><chart_code>DP</chart_code><chart_name>TEST DEPARTURE - FIXTURE ONLY</chart_name><pdf_name>TESTDP.PDF</pdf_name></record>
+  <record><chart_code>STAR</chart_code><chart_name>TEST ARRIVAL - FIXTURE ONLY</chart_name><pdf_name>TESTSTAR.PDF</pdf_name></record>
+  <record><chart_code>IAP</chart_code><chart_name>INVALID LINK MUST BE OMITTED</chart_name><pdf_name>../../foreign.PDF</pdf_name></record>
+ </airport_name></city_name></state_code>
+</digital_tpp>

@@ -1,3 +1,4 @@
+import { chartCurrent, validChart, type ChartCatalog, type Chart, type PinnedApproach } from './efbData';
 import { withSaveCoordination } from './storageGate';
 import { findContract } from './missions';
 import { blankDraft, numericInput, validateDraft, type FlightDraft, type FlightEntry } from './reports';
@@ -8,12 +9,12 @@ export interface Game {
   version: 1; company: { name: string; cash: number; headquarters: string; reputation: number };
   aircraft: Aircraft[]; pilots: Pilot[]; completedMissions: number; flightHours: number;
   operationalTime: string; activeMissionId: string | null;
-  activeFlightId: string | null; pendingReport: FlightDraft | null; logbook: FlightEntry[];
+  pinnedApproach: PinnedApproach | null; activeFlightId: string | null; pendingReport: FlightDraft | null; logbook: FlightEntry[];
   recentDialogue: string[]; dispatcher: DispatcherLine | null; revision: number;
 }
 export const SAVE_KEY = 'airtruckers.save.v1';
 export function createGame(name: string): Game {
-  return { activeMissionId: null, activeFlightId: null, pendingReport: null, logbook: [], recentDialogue: [], dispatcher: null, revision: 0, version: 1, company: { name: name.trim(), cash: 25000, headquarters: 'PADQ', reputation: 50 }, aircraft: [{ id: 'N208AT', model: 'Cessna 208B Grand Caravan EX', location: 'PADQ', hours: 0, ownership: 'owned', maintenance: 'Airworthy' }], pilots: [{ id: 'owner', role: 'Owner / Pilot', annualSalary: 65000 }], completedMissions: 0, flightHours: 0, operationalTime: '2026-06-01T08:00:00.000Z' };
+  return { pinnedApproach: null, activeMissionId: null, activeFlightId: null, pendingReport: null, logbook: [], recentDialogue: [], dispatcher: null, revision: 0, version: 1, company: { name: name.trim(), cash: 25000, headquarters: 'PADQ', reputation: 50 }, aircraft: [{ id: 'N208AT', model: 'Cessna 208B Grand Caravan EX', location: 'PADQ', hours: 0, ownership: 'owned', maintenance: 'Airworthy' }], pilots: [{ id: 'owner', role: 'Owner / Pilot', annualSalary: 65000 }], completedMissions: 0, flightHours: 0, operationalTime: '2026-06-01T08:00:00.000Z' };
 }
 export function advanceTime(game: Game, hours: number): Game {
   if (!Number.isFinite(hours) || hours <= 0 || hours > 168) throw new Error('Advance between 1 and 168 hours.');
@@ -38,7 +39,7 @@ export function parseSave(raw: string): Game {
   const legacy = additions.every(key => !(key in g));
   const normalized: Game = legacy ? { ...g, activeMissionId, activeFlightId: activeMissionId ? `legacy:${activeMissionId}:${g.operationalTime}` : null, pendingReport: null, logbook: [], recentDialogue: [], dispatcher: null, revision: 0 } : { ...g, activeMissionId };
   if (!legacy && additions.some(key => !(key in g))) throw new Error('Incomplete flight save. Your stored data has not been changed.');
-  const n = normalized;
+  const n = { ...normalized, pinnedApproach: normalized.pinnedApproach === undefined ? null : normalized.pinnedApproach };
   if (!Number.isSafeInteger(n.revision) || n.revision < 0 || !Array.isArray(n.logbook) || !Array.isArray(n.recentDialogue) || n.recentDialogue.length > 6 || !n.recentDialogue.every(id => typeof id === 'string') || (n.dispatcher !== null && (!n.dispatcher || typeof n.dispatcher.id !== 'string' || typeof n.dispatcher.text !== 'string')) || (n.activeMissionId === null ? n.activeFlightId !== null || n.pendingReport !== null : typeof n.activeFlightId !== 'string' || !n.activeFlightId || contract?.origin !== n.aircraft[0].location)) throw new Error('Invalid flight state. Your stored data has not been changed.');
   n.logbook.forEach(validateEntry);
   const ids = new Set(n.logbook.map(e => e.id));
@@ -47,6 +48,7 @@ export function parseSave(raw: string): Game {
     validateDraft(n.pendingReport);
     if (n.pendingReport.flightId !== n.activeFlightId) throw new Error('Draft does not match active flight.');
   }
+  if (n.pinnedApproach !== null && (!n.pinnedApproach || n.pinnedApproach.flightId !== n.activeFlightId || !validChart(n.pinnedApproach.chart) || n.pinnedApproach.chart.type !== 'IAP' || !contract || ![contract.origin, contract.airport].includes(n.pinnedApproach.chart.airport))) throw new Error('Invalid pinned approach in save.');
   return n;
 }
 function acknowledge(game: Game, event: DialogueEvent, report?: FlightDraft): Game {
@@ -68,7 +70,7 @@ export function acceptMission(game: Game, id: string): Game {
 }
 export function cancelMission(game: Game): Game {
   if (!game.activeMissionId) return game;
-  return { ...acknowledge(game, 'cancelled'), activeMissionId: null, activeFlightId: null, pendingReport: null };
+  return { ...acknowledge(game, 'cancelled'), activeMissionId: null, activeFlightId: null, pendingReport: null, pinnedApproach: null };
 }
 export function reportFor(game: Game): FlightDraft {
   const contract = game.activeMissionId ? findContract(game.activeMissionId) : undefined;
@@ -92,7 +94,7 @@ export function submitFlightReport(game: Game, report: FlightDraft): Game {
   const revenue = report.delivery === 'completed' ? contract.payout : 0;
   const entry: FlightEntry = { id: report.flightId, missionId: contract.id, title: contract.title, aircraftId: game.aircraft[0].id, origin: contract.origin, plannedDestination: contract.airport, arrival: report.arrival, payload: contract.payload, proposedPayout: contract.payout, revenue, minutes, fuelLb: numericInput(report.fuelLb, 'fuel'), estimatedMinutes: numericInput(report.estimatedMinutes, 'minutes'), estimatedFuelLb: numericInput(report.estimatedFuelLb, 'fuel'), delivery: report.delivery, landing: report.landing, notes: report.notes, startedAt: game.operationalTime, endedAt };
   const next = acknowledge(game, 'submitted', report);
-  return { ...next, company: { ...game.company, cash: game.company.cash + revenue }, aircraft: game.aircraft.map((a, i) => i === 0 ? { ...a, location: report.arrival, hours: a.hours + minutes / 60 } : a), completedMissions: game.completedMissions + (report.delivery === 'completed' ? 1 : 0), flightHours: game.flightHours + minutes / 60, operationalTime: endedAt, logbook: [...game.logbook, entry], activeMissionId: null, activeFlightId: null, pendingReport: null };
+  return { ...next, company: { ...game.company, cash: game.company.cash + revenue }, aircraft: game.aircraft.map((a, i) => i === 0 ? { ...a, location: report.arrival, hours: a.hours + minutes / 60 } : a), completedMissions: game.completedMissions + (report.delivery === 'completed' ? 1 : 0), flightHours: game.flightHours + minutes / 60, operationalTime: endedAt, logbook: [...game.logbook, entry], activeMissionId: null, activeFlightId: null, pendingReport: null, pinnedApproach: null };
 }
 // One versioned document commits cash, clock, aircraft, draft and logbook together.
 export const localSaveRepository = {
@@ -108,3 +110,9 @@ export const localSaveRepository = {
     });
   },
 };
+
+export function pinApproach(game: Game, chart: Chart, catalog: ChartCatalog, now = Date.now()): Game {
+  const mission = game.activeMissionId ? findContract(game.activeMissionId) : undefined;
+  if (!mission || !game.activeFlightId || !validChart(chart) || chart.type !== 'IAP' || ![mission.origin, mission.airport].includes(chart.airport) || catalog.airport !== chart.airport || catalog.status !== 'current' || !chartCurrent(chart, now) || !catalog.charts.some(item => JSON.stringify(item) === JSON.stringify(chart))) throw new Error('Select an available, current FAA approach from this mission’s verified catalog.');
+  return { ...game, pinnedApproach: { flightId: game.activeFlightId, chart: { ...chart } } };
+}
