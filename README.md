@@ -1,4 +1,4 @@
-# AirTruckers · Alaska Operations · Version 0.5A
+# AirTruckers · Alaska Operations · Version 0.5C
 
 A browser-based aviation career and company management companion for Microsoft Flight Simulator 2020 on Xbox. Flights are flown in MSFS and reported manually here. No simulator telemetry, external AI service, backend or account is required.
 
@@ -200,3 +200,15 @@ Version 0.5A uses only the first aircraft and owner/pilot. No simulator connecti
 `npm test` retains financial, draft, old-save, EFB and native server-packaging checks and adds seeded generation, multi-slot uniqueness, story/customer/manifest variety, official airport-coordinate fixtures, loading/route/payout validation, a 25-leg anti-repetition career, round-trip behavior, return-job withholding, stable accepted snapshots/pins, concurrent payment protection and read-only dispatcher context tests. Historical fixtures are not production airport/weather catalogs.
 
 Manual acceptance: create a company, record the four offers, reload and revisit Dispatch; they must match. Accept one, save a report draft and check no balance/location change. Visit Flight Bag, pin an actual available approach, return and submit; revenue must equal the accepted payout. Reload at the arrival airport and inspect new offers. Advance game time across a six-hour slot without charges. Fly back when a return is offered and confirm recently reported themes/customers/payload families are absent. Export JSON and verify dispatch seed/counter/boards, active snapshot, draft, pin and logbook. Actual iPad Safari device and a future approved preview remain acceptance checks; no deployment is part of this task.
+
+## Version 0.5C — visual mission polish
+
+Dispatch cards now use compact, accessible Lucide symbols for freight, tools, medical/utility supplies, passengers, records, seafood/cannery and education loads. Each route has small exact-airport departure/arrival METAR indicators. Accepted assignments receive a destination hero in Dispatch and Flight Operations with airport code/name, route, mission symbol, stored payout/payload, weather summaries and the original actions.
+
+The built-in SVG scene library provides representative Kodiak, Larsen Bay, Akhiok, Homer and Kenai illustrations plus a generic Alaska fallback. These are clearly labeled artistic landscapes, **not actual airport imagery, airport diagrams or current weather**. There are no live image requests/APIs, and dispatch list cards have no large scenery.
+
+Weather indicators use the existing same-origin METAR endpoint; the FAA/NOAA server adapters and EFB remain unchanged. Display-only parsing recognizes standard cloud, precipitation, obscuration, visibility, wind/gust and low-ceiling tokens before METAR remarks. Labels describe reported conditions rather than certifying VFR/IFR or recommending a flight. Multiple phenomena are compacted to a primary symbol, with extra wind/caution indicators where applicable; consult raw reports in Flight Bag. Wind emphasis uses 20 kt sustained / 25 kt gust display thresholds, not aircraft operating limits. Missing reports remain **No Report**; API/network/malformed or wrong-station responses remain **Data Unavailable**, without nearby substitutions. Reports older than two hours or implausibly future-dated show an age caution; missing observation times stay neutral.
+
+Requests are deduplicated/cached per airport in memory (60 seconds, 15 seconds for errors), with five-minute refresh while mounted and minute-by-minute age checks. Manual weather refresh changes only this display cache. Server caching/rate limits still apply. No weather result is written into company saves; refreshing it cannot regenerate assignments, advance operational time, credit revenue or alter accepted state.
+
+Presentation tests cover semantic icon mapping, all weather states, age/error handling, request deduplication, representative/fallback scenery, accessible labels, and absence of storage/game mutations. Chromium checks covered 1366px desktop, 1024px landscape tablet, 768px portrait tablet and 390px phone layouts, plus draft persistence and correct stored-payout submission. Physical iPad Safari and a future approved preview remain device/deployment checks. The v0.5A generator, loading assumptions, finances, migrations, pinning and report transitions are unchanged.
