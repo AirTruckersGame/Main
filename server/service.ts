@@ -1,5 +1,5 @@
-import { airportId, validChartUrl, type ChartCatalog, type WeatherKind } from '../src/efbData';
-import { boundedBody, checkResponse, getCatalog, getWeather, ProviderError, upstream, type Fetcher } from './providers';
+import { airportId, validChartUrl, type ChartCatalog, type WeatherKind } from '../src/efbData.js';
+import { boundedBody, checkResponse, getCatalog, getWeather, ProviderError, upstream, type Fetcher } from './providers.js';
 export interface ApiResult { status: number; headers: Record<string, string>; body: unknown; }
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}): ApiResult => ({ status, body, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers } });
 export function createEfbService(fetcher: Fetcher = fetch) {

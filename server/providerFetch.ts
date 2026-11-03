@@ -1,5 +1,5 @@
 import { EnvHttpProxyAgent } from 'undici';
-import type { Fetcher } from './providers';
+import type { Fetcher } from './providers.js';
 // Respect managed-environment proxies and normal TLS trust. Vercel normally has
 // no proxy variables, in which case the standard server fetch is used unchanged.
 let dispatcher: EnvHttpProxyAgent | undefined;

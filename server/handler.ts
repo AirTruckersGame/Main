@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { providerFetch } from './providerFetch';
-import { createEfbService } from './service';
+import { providerFetch } from './providerFetch.js';
+import { createEfbService } from './service.js';
 const handle = createEfbService(providerFetch);
 export default async function handler(request: IncomingMessage, response: ServerResponse) {
   try {

@@ -4,7 +4,7 @@ A browser-based aviation career and company management companion for Microsoft F
 
 ## Run and validate
 
-Use Node.js 22.12+ and npm (validated with Node 24).
+Use Node.js 24.x and npm. The package engine pins the Vercel function to the same tested Node major.
 
 ```sh
 npm ci
@@ -149,16 +149,22 @@ Before release:
 
 ## Vercel deployment preparation (nothing deployed)
 
-Full EFB functionality now requires a server function; a static-only GitHub Pages upload cannot provide weather/chart/PDF proxies. `vercel.json` selects Vite, builds with `npm run build`, publishes `dist`, and configures `api/efb.ts` with a 60-second maximum duration. Use Node 22.12+ (Node 24 recommended), install via `npm ci`, and retain `api/`, `server/` and `src/efbData.ts` in the repository so Vercel can build the function. No SPA catch-all rewrite should capture `/api/efb`.
+Full EFB functionality now requires a server function; a static-only GitHub Pages upload cannot provide weather/chart/PDF proxies. `vercel.json` selects Vite, builds with `npm run build`, publishes `dist`, and configures `api/efb.ts` with a 60-second maximum duration. Use Node 24.x (pinned in `package.json` and the lockfile), install via `npm ci`, and retain `api/`, `server/` and `src/efbData.ts` in the repository so Vercel can build the function. No SPA catch-all rewrite should capture `/api/efb`.
 
-Vite development includes the API middleware. `npm run preview` is static-only; use Vercel local development or a separately tested server for production API validation. Production build, deterministic tests and local live endpoint/browser checks passed, but actual Vercel function deployment, provider permission for Vercel egress IPs and deployment-specific CSP/worker behavior have not been verified. HTTPS is recommended; existing IndexedDB save coordination supports browsers without Web Locks. Do not deploy until the outstanding Vercel-preview and actual iPad checks are completed and release approval is given.
+Vite development includes the API middleware. `npm run preview` is static-only; use Vercel local development or a separately tested server for production API validation. Production build, deterministic tests, native-Node function cold-start tests and local live checks through the official Vercel builder output passed. A previously reproduced ESM import failure is corrected; see [the packaging diagnosis](docs/vercel-function-diagnosis.md). Actual redeployed preview behavior, provider permission for Vercel egress IPs and deployment-specific CSP/worker behavior still need verification. HTTPS is recommended; existing IndexedDB save coordination supports browsers without Web Locks. Do not deploy until the outstanding Vercel-preview and actual iPad checks are completed and release approval is given.
+
+### Server packaging checks
+
+`npm run build` first runs `npm run check:server`, using `api/tsconfig.json` with NodeNext module resolution. Server-side relative imports must name the emitted `.js` files even in TypeScript source; Node ESM does not resolve extensionless imports like Vite does. Do not switch the server graph back to Bundler resolution to silence these errors.
+
+`npm test` includes `src/serverPackaging.test.ts`: it emits the API dependency graph into an isolated ESM directory, cold-loads it with a native Node child process (no Vite/TS loader), and invokes weather, catalog, binary PDF, validation and failure paths with provider fixtures. The test requires permission to launch a local Node process. The official Vercel Node builder was also checked independently without deploying; before correction its output failed with ERR_MODULE_NOT_FOUND, and after correction its artifact cold-loaded and passed live PADQ provider checks.
 
 ## Architecture and limitations
 
 - `src/game.ts`: versioned state, migrations, flight transitions, approach pins and atomic local-storage adapter.
 - `src/efbData.ts`: shared EFB contracts and strict FAA link/airport validation.
 - `server/providers.ts`, `server/service.ts`: weather/FAA metadata adapters, validated PDF proxy, cache/limits/timeouts.
-- `api/efb.ts`, `server/handler.ts`: Vercel/Vite server entry points.
+- `api/efb.ts`, `server/handler.ts`: Vercel/Vite server entry points; `api/tsconfig.json` checks the Node ESM module graph.
 - `src/FlightPlanning.tsx`, `src/ChartViewer.tsx`: weather/catalog UI and PDF.js rendering.
 - `src/usePublicationClock.ts`: real-world publication labels, separate from operational time.
 - `src/storageGate.ts`: shared IndexedDB transaction gate, optional Web Locks and safe fallback.

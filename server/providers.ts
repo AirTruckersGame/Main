@@ -1,5 +1,5 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
-import { airportId, FAA_DTPP, type Chart, type ChartCatalog, type WeatherKind, type WeatherReport, validChart, chartCurrent } from '../src/efbData';
+import { airportId, FAA_DTPP, type Chart, type ChartCatalog, type WeatherKind, type WeatherReport, validChart, chartCurrent } from '../src/efbData.js';
 export type Fetcher = typeof fetch;
 export async function upstream(url: string, fetcher: Fetcher = fetch): Promise<Response> {
   // FAA's XML host returns 406 for application/xml; wildcard Accept was verified live.
