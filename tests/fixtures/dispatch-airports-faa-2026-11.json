@@ -1,0 +1,66 @@
+{
+  "source": "https://aviationweather.gov/api/data/airport?ids=PALB,PADY,PAKH,PAOO,PORI,PADQ,PAHO,PAEN&format=json",
+  "note": "Recorded FAA-sourced AWC airport data. Historical identity/coordinate regression fixture; not a runway-performance or live-availability claim.",
+  "airports": [
+    {
+      "icaoId": "PADQ",
+      "faaId": "ADQ",
+      "name": "KODIAK/KODIAK ",
+      "state": "AK",
+      "country": "US",
+      "source": "FAA",
+      "lat": 57.7498,
+      "lon": -152.4939
+    },
+    {
+      "icaoId": "PADY",
+      "faaId": "DUY",
+      "name": "KONGIGANAK/KONGIGANAK ",
+      "state": "AK",
+      "country": "US",
+      "source": "FAA",
+      "lat": 59.9616,
+      "lon": -162.8806
+    },
+    {
+      "icaoId": "PAEN",
+      "faaId": "ENA",
+      "name": "KENAI/KENAI MUNI ",
+      "state": "AK",
+      "country": "US",
+      "source": "FAA",
+      "lat": 60.5733,
+      "lon": -151.2448
+    },
+    {
+      "icaoId": "PAHO",
+      "faaId": "HOM",
+      "name": "HOMER/HOMER ",
+      "state": "AK",
+      "country": "US",
+      "source": "FAA",
+      "lat": 59.6455,
+      "lon": -151.4766
+    },
+    {
+      "icaoId": "PAKH",
+      "faaId": "AKK",
+      "name": "AKHIOK/AKHIOK ",
+      "state": "AK",
+      "country": "US",
+      "source": "FAA",
+      "lat": 56.9387,
+      "lon": -154.1826
+    },
+    {
+      "icaoId": "PALB",
+      "faaId": "2A3",
+      "name": "LARSEN BAY/LARSEN BAY ",
+      "state": "AK",
+      "country": "US",
+      "source": "FAA",
+      "lat": 57.5351,
+      "lon": -153.9767
+    }
+  ]
+}

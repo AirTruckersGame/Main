@@ -1,4 +1,4 @@
-# AirTruckers · Alaska Operations · Version 0.4
+# AirTruckers · Alaska Operations · Version 0.5A
 
 A browser-based aviation career and company management companion for Microsoft Flight Simulator 2020 on Xbox. Flights are flown in MSFS and reported manually here. No simulator telemetry, external AI service, backend or account is required.
 
@@ -24,19 +24,32 @@ Reputation starts at neutral 50/100; this release does not alter it. The operati
 
 ## Dispatch and Flight Operations
 
-Dispatch only shows explicitly defined contracts departing from the aircraft's current airport. The original five fictional Kodiak stories remain:
+Dispatch now uses a persistent seeded generator instead of repeating the fixed v0.2–v0.4 assignments. There are 21 curated story templates, 24 fictional customers and seven mission categories: general cargo, commercial resupply, medical logistics, government/infrastructure, priority freight, community delivery and passenger charter. Mission text, customers, cargo quantities or passenger groups, route choices and proposed payouts vary. No AI service is called.
 
-| Contract | Destination | Type | Payload | Approximate distance | Company revenue on delivery |
-| --- | --- | --- | --- | --- | --- |
-| The cannery’s missing part | Larsen Bay (PALB) | Cargo | 780 lb | 50 NM | $1,450 |
-| A classroom worth of possibilities | Old Harbor (PADY) | Cargo | 540 lb | 44 NM | $1,250 |
-| Keeping the lights on | Akhiok (PAKH) | Cargo | 960 lb | 74 NM | $2,100 |
-| The village gathering | Ouzinkie (4K5) | Passenger charter | 920 lb | 12 NM | $850 |
-| Field notes from the island | Port Lions (PORI) | Passenger charter | 840 lb | 24 NM | $1,150 |
+### Curated airports and routes
 
-Each destination has one explicitly defined fictional return contract to PADQ: cannery records (PALB, $1,000), visiting teachers (PADY, $1,050), tool cases (PAKH, $1,600), gathering guests (4K5, $700), or research samples (PORI, $800). No procedural or impossible origin routes are generated. Airports outside this set show a clear **no contracts** state. Repositioning is not implemented, so a diversion to an unsupported airport can leave the aircraft without further contracts in this release.
+New assignments use **PADQ Kodiak, PALB Larsen Bay, PAKH Akhiok, PAHO Homer and PAEN Kenai**, verified against FAA-sourced AWC airport records. Curated bidirectional pairs are Kodiak–Larsen Bay, Kodiak–Akhiok, Kodiak–Homer, Kodiak–Kenai and Homer–Kenai. Distances are rounded great-circle estimates from those coordinates, not filed routes or performance/range guarantees. No airport services, runway capability, weather coverage or approach procedure is inferred from a route's presence. See [airport provenance and legacy limitations](docs/dynamic-dispatch.md).
 
-1. **Select a contract.** Only one can be active. A unique flight-instance ID distinguishes repeated acceptances of the same contract. Cancellation is free and discards any saved report after confirmation.
+An unsupported airport shows no generated contracts. The old v0.4 PADY/Old Harbor pairing was incorrect: the official PADY record is Kongiganak. Legacy assignments, locations and history retain their original codes/payouts rather than being silently relocated or rerouted; a specific warning identifies that old pairing. Legacy destinations outside the verified new route set have no new generated board. Repositioning and user-approved legacy-location repair are not implemented.
+
+### Generation, refresh and repetition rules
+
+- A new company stores a random seed and a monotonic assignment counter. The generator is deterministic from that seed, airport, operational slot and counter; explicit seeds are supported in the domain API for tests/replays. Generated instance IDs include the full seed namespace and serial. Completed or cancelled instances are never reoffered.
+- A saved board holds up to four distinct offers, preferring different supported destinations before repeating a route. Opening Dispatch, refreshing Safari, renaming, exporting, weather/chart requests and real-world elapsed time do **not** regenerate it. Older saves receive a deterministic initial board during migration, which is preserved on the next normal save.
+- Offers expire at UTC-aligned **operational** 00:00/06:00/12:00/18:00 boundaries. Deliberately advancing game time into another slot replaces the current airport's offers. Jumping several slots generates only the final slot, not a backlog.
+- A submitted flight adds/refills arrival-airport opportunities. Unexpired nonconflicting cards retain their IDs and contents; new cards fill remaining space. A deterministic 40% gate can withhold **new** jobs back to the previous origin for that batch. Other routes may still have offers. A leaf airport can have an empty board until a later operational slot; return work is possible, not automatic.
+- The last six **reported** assignments (including diversions/incomplete deliveries) suppress matching titles, storyline IDs, customers and grouped similar payload families on **all saved boards**. Related hardware/bearings, paper supplies, textiles, clinic supplies, fragile instruments, education loads and passenger groups share families. This survives round trips and reloads; it is a six-assignment window, not a promise of never seeing a theme again. Categories can recur with different loads.
+- Accepting removes an offered instance and stores a detached full contract snapshot. Its route, story, manifest and actual payout remain fixed even if game time passes its former offer expiry. Cancellation is free, discards the draft/pin and retires that instance; it does not instantly reroll the board. Finish or cancel before taking another assignment.
+
+### Conservative loading and revenue assumptions
+
+These are **game planning assumptions, not certified Caravan limits or verified aircraft performance**: a 2,800 lb useful-load planning budget reserves 1,400 lb assumed fuel, 220 lb owner/pilot and 180 lb margin, leaving at most 1,000 lb for the job. Generated cargo weighs 120–950 lb. Charters carry 1–4 passengers at an assumed 220 lb each plus 25 lb of personal baggage each (245–980 lb total). The four-passenger cap is a conservative game cap, not a claim about installed seats. No extra technician tools are hidden outside the manifest.
+
+Actual MSFS aircraft configuration, fuel needed/reserves, weights, centre of gravity, density altitude, terrain, runway condition and performance must be checked independently. The app neither loads the simulator nor certifies takeoff/landing feasibility or fuel endurance. All medical cargo is routine, nonhazardous logistics; no patient transport or cold-chain capability is promised. Priority jobs have a price premium, not an enforced deadline or safety exemption.
+
+Proposed revenue is rounded to $25: `(350 + distanceNM × 7 + payloadLb × 0.45) × categoryMultiplier`, using 1.00 cargo/community, 1.05 commercial, 1.10 infrastructure, 1.15 medical, 1.20 charter or 1.25 priority. Validation bounds generated payouts to $350–$3,000. This is fictional game pricing, not real charter pricing. Only the **accepted stored payout** is credited once after a reported completed delivery; no salary deduction, fuel charge or operating expense is added. Generation itself changes no cash or operational time.
+
+1. **Select a contract.** Only one can be active. Each assignment has a unique generated ID and a separate flight-instance nonce; old fixed assignments can survive only as migrated active saves, not as selectable new offers. Cancellation is free and discards any saved report after confirmation.
 2. **Plan flight / EFB** from the accepted contract, review weather/charts, then return to Flight Operations. A permanent **Flight Bag** button in Flight Operations and a one-tap **Pinned Approach** button keep the mission workflow together. Flight report edits remain mounted when visiting the EFB, but still require explicit saving to survive refresh. **Open Flight Operations** from the active contract or Dashboard. Review origin, destination, manifest, proposed revenue, approximate direct distance and operational considerations.
 3. **Enter planning estimates if known.** No verified aircraft time or fuel performance data is bundled. The optional planning section accepts the player's estimated minutes and fuel burn. Otherwise these remain unavailable, not invented. Planning estimates remain separate from reported actuals in the logbook and backup.
 4. **Enter the post-flight report.** Actual flight time is mandatory for submission, as whole minutes from 1 to 1,440. Optional consumed fuel accepts 0–10,000 pounds with up to two decimal places; blank means unknown, not zero. These are manual-entry sanity bounds, not aircraft operating limits. Enter delivery status, landing outcome, actual arrival airport and optional pilot notes (2,000 characters maximum). Airport codes accept 3–4 letters/numbers; code existence is not checked against a worldwide database.
@@ -51,11 +64,11 @@ A hard landing is a separate outcome and is preserved even if the delivery was c
 
 ## Dispatcher Mara
 
-Short, local rule-based acknowledgments react to contract type, saved drafts, cancellation, delivery outcome, hard landings and estimates versus reported time/fuel. More than 25% above a positive player estimate triggers a planning-review comment, never a financial penalty or claim about aircraft performance. No comparison is made for unavailable estimates. Outcome and hard-landing messages take priority over performance commentary. Each context has three variants; a persisted six-message ID history avoids recent repetition and falls back to the least recently used variant when all variants have been used. No external AI API is called.
+Short, local rule-based acknowledgments react to contract type, saved drafts, cancellation, delivery outcome, hard landings and estimates versus reported time/fuel. More than 25% above a positive player estimate triggers a planning-review comment, never a financial penalty or claim about aircraft performance. No comparison is made for unavailable estimates. Outcome and hard-landing messages take priority over performance commentary. Each context has three variants; a persisted six-message ID history avoids recent repetition and falls back to the least recently used variant when all variants have been used. Category-specific acknowledgments now cover all seven generated mission categories. `src/dispatcherContext.ts` exposes a detached, deeply frozen, read-only snapshot of company/aircraft state, active assignment, available work, recent story/customer/payload context and the last report for future v0.5B integration. It contains no command/mutation capability. No external AI API is called.
 
 ## Persistence, migration and duplicate protection
 
-The original `airtruckers.save.v1` storage key and `version: 1` remain stable. Version 0.1/v0.2 saves normalize missing flight fields without resetting names, cash, aircraft, pilots, reputation, totals or clock. Accepted v0.2 missions receive deterministic migration IDs; past aggregate flights are preserved without fabricating historical logbook entries. New acceptances get unique IDs.
+The original `airtruckers.save.v1` storage key and `version: 1` remain stable. Version 0.1/v0.2 saves normalize missing flight fields without resetting names, cash, aircraft, pilots, reputation, totals or clock. Accepted v0.2 missions receive deterministic migration IDs; past aggregate flights are preserved without fabricating historical logbook entries. New acceptances get unique IDs. Version 0.5A adds persisted `dispatch` and `activeContract` fields. Legacy active IDs resolve to unchanged fixed snapshots only during migration. New logbook entries include the full accepted snapshot; old entries do not need to be rewritten. Partial/corrupt dispatch fields and repeated generated assignment IDs are rejected without overwriting stored progress.
 
 A single local-storage document contains company state, pending report, active flight-instance ID, logbook, dialogue history and save revision. An IndexedDB read/write transaction coordinates every save across tabs, including clients that additionally use Web Locks. The coordination database contains no game data; the single local-storage document remains authoritative. A transaction serializes the synchronous snapshot check and local-storage write; local-storage leases or check-then-write alone are not used as locks. Each write checks the loaded snapshot against current storage. A stale tab must refresh rather than overwrite a newer report or credit revenue again. Missing/unsupported Web Locks uses the same IndexedDB gate, so mixed clients share protection. Web Locks rejection falls back only if the protected callback has not started; failed writes are never automatically retried. A successful local-storage write is acknowledged immediately, even if the coordination transaction later aborts, because retrying an already-applied payment would be misleading. The domain model also rejects already-recorded flight IDs. Final submission stays on screen if saving fails; company state is not updated in memory or paid until storage succeeds. Invalid numeric inputs, incompatible partial saves and duplicate log entries are rejected rather than silently discarded.
 
@@ -169,7 +182,9 @@ Vite development includes the API middleware. `npm run preview` is static-only; 
 - `src/usePublicationClock.ts`: real-world publication labels, separate from operational time.
 - `src/storageGate.ts`: shared IndexedDB transaction gate, optional Web Locks and safe fallback.
 - `src/reports.ts`: report types and shared input validation.
-- `src/missions.ts`: stable contract IDs, explicit origins and route catalog.
+- `src/missions.ts`: immutable legacy contract definitions for migration and shared assignment types.
+- `src/generator.ts`: curated routes/templates, deterministic generation, loading validation, board refresh and global repetition memory.
+- `src/dispatcherContext.ts`: read-only future conversation context.
 - `src/dialogue.ts`: deterministic context selection, variants and recent-history avoidance.
 - `src/FlightOperations.tsx`: draft form, confirmation and logbook views.
 - `src/Dispatch.tsx`: current-airport contract board and accepted-flight access.
@@ -178,4 +193,10 @@ Vite development includes the API middleware. `npm run preview` is static-only; 
 - `src/game.test.ts`, `src/flights.test.ts`, `src/storageGate.test.ts`: existing domain/migration/persistence tests.
 - `src/efb.test.ts`, `src/ChartViewer.test.tsx`, `tests/fixtures/`: synthetic plus recorded-official EFB provider, pin, expiry and viewer tests; `scripts/verify-live.mjs` is the opt-in live endpoint check.
 
-Version 0.4 uses only the first aircraft and owner/pilot. No simulator connection, verified performance calculations, airport database, repositioning, interrupted-delivery resumption, automatic payroll/expenses, aircraft purchases, employee hiring, interactive checklists, integrated enroute browsing, logbook editing/undo, backup import or cloud saving is implemented. Clearing an accepted mission is a cancellation, not flight reporting; only submit a report when the flying should count.
+Version 0.5A uses only the first aircraft and owner/pilot. No simulator connection, verified performance calculations, airport database, repositioning, interrupted-delivery resumption, automatic payroll/expenses, aircraft purchases, employee hiring, interactive checklists, integrated enroute browsing, logbook editing/undo, backup import or cloud saving is implemented. Clearing an accepted mission is a cancellation, not flight reporting; only submit a report when the flying should count.
+
+## Version 0.5A validation
+
+`npm test` retains financial, draft, old-save, EFB and native server-packaging checks and adds seeded generation, multi-slot uniqueness, story/customer/manifest variety, official airport-coordinate fixtures, loading/route/payout validation, a 25-leg anti-repetition career, round-trip behavior, return-job withholding, stable accepted snapshots/pins, concurrent payment protection and read-only dispatcher context tests. Historical fixtures are not production airport/weather catalogs.
+
+Manual acceptance: create a company, record the four offers, reload and revisit Dispatch; they must match. Accept one, save a report draft and check no balance/location change. Visit Flight Bag, pin an actual available approach, return and submit; revenue must equal the accepted payout. Reload at the arrival airport and inspect new offers. Advance game time across a six-hour slot without charges. Fly back when a return is offered and confirm recently reported themes/customers/payload families are absent. Export JSON and verify dispatch seed/counter/boards, active snapshot, draft, pin and logbook. Actual iPad Safari device and a future approved preview remain acceptance checks; no deployment is part of this task.

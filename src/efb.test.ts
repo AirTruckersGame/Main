@@ -1,8 +1,9 @@
+import { acceptLegacyMission as acceptMission } from '../tests/legacy';
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 import { airportId, chartCurrent, pdfEndpoint, validChartUrl, weatherLabel, type Chart } from './efbData';
-import { acceptMission, cancelMission, createGame, localSaveRepository, parseSave, pinApproach, submitFlightReport, reportFor } from './game';
+import { cancelMission, createGame, localSaveRepository, parseSave, pinApproach, submitFlightReport, reportFor } from './game';
 import { decodeWeather, discoverCycles, faaDate, getWeather, parseFaaIndex } from '../server/providers';
 import { createEfbService } from '../server/service';
 const xml = readFileSync(new URL('../tests/fixtures/dtpp-test.xml', import.meta.url), 'utf8');
