@@ -1,7 +1,7 @@
 import { usePublicationClock } from './usePublicationClock';
 import { useEffect, useState } from 'react';
 import { ChartViewer } from './ChartViewer';
-import { findContract } from './missions';
+import { getActiveContract } from './game';
 import { pinApproach, type Game } from './game';
 import { FAA_DTPP, FAA_IFR, FAA_VFR, chartCurrent, validChart, weatherLabel, type Chart, type ChartCatalog, type WeatherKind, type WeatherReport } from './efbData';
 function WeatherCard({ airport, kind, refresh }: { airport: string; kind: WeatherKind; refresh: number }) {
@@ -18,7 +18,7 @@ function WeatherCard({ airport, kind, refresh }: { airport: string; kind: Weathe
   return <article className="card weather-card"><span className="eyebrow">{airport} · {kind.toUpperCase()}</span>{!report ? <p role="status">Retrieving report…</p> : <><h3>{weatherLabel(report.status)}</h3>{report.raw && <pre>{report.raw}</pre>}{report.reportTime && <p className="muted">{kind === 'metar' ? 'Observation' : 'Issue'} (UTC): {report.reportTime}</p>}{report.decoded?.map(line => <p className="weather-decoded" key={line}>{line}</p>)}{report.message && <p className="muted">{report.message}</p>}<small>Source: Aviation Weather Center · Retrieved {report.retrievedAt || 'unsuccessfully'}{report.retrievedAt && ' (UTC)'}</small></>}</article>;
 }
 export function FlightPlanning({ game, onChange, onNavigate }: { game: Game; onChange: (next: Game) => Promise<boolean>; onNavigate: (page: string) => void }) {
-  const mission = game.activeMissionId ? findContract(game.activeMissionId) : undefined;
+  const mission = getActiveContract(game);
   const [airport, setAirport] = useState(game.pinnedApproach?.chart.airport ?? mission?.airport ?? game.aircraft[0].location), [refresh, setRefresh] = useState(0);
   const [catalog, setCatalog] = useState<ChartCatalog | null>(null), [selection, setSelection] = useState<Chart | null>(game.pinnedApproach?.chart ?? null), [error, setError] = useState(''), [saving, setSaving] = useState(false);
   const publicationTime = usePublicationClock(catalog?.effectiveFrom, catalog?.effectiveTo);

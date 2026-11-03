@@ -1,5 +1,5 @@
 import { contracts } from './missions';
-import { acceptMission, cancelMission } from './game';
+import { acceptMission, cancelMission, offeredContracts } from './game';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { advanceTime, createGame, localSaveRepository, parseSave, SAVE_KEY } from './game';
 afterEach(() => vi.unstubAllGlobals());
@@ -48,16 +48,17 @@ describe('dispatch state and compatibility', () => {
   });
   it('accepts only a known contract and blocks a second active mission', () => {
     const game = createGame('Island Air');
-    expect(() => acceptMission(game, 'unknown')).toThrow('Unknown contract');
-    const accepted = acceptMission(game, contracts[0].id);
-    expect(accepted.activeMissionId).toBe(contracts[0].id);
+    expect(() => acceptMission(game, 'unknown')).toThrow('Unknown or expired contract');
+    const offer = offeredContracts(game)[0];
+    const accepted = acceptMission(game, offer.id);
+    expect(accepted.activeMissionId).toBe(offer.id);
     expect(game.activeMissionId).toBeNull();
     expect(() => acceptMission(accepted, contracts[1].id)).toThrow('Cancel');
     expect(() => acceptMission(accepted, contracts[0].id)).toThrow('Cancel');
   });
   it('cancels without changing cash, reputation, time, flight totals or aircraft', () => {
     const game = createGame('Island Air');
-    const accepted = acceptMission(game, contracts[2].id);
+    const accepted = acceptMission(game, offeredContracts(game)[2].id);
     expect(accepted.company).toEqual(game.company);
     expect(accepted.operationalTime).toEqual(game.operationalTime);
     expect(accepted.aircraft).toEqual(game.aircraft);
@@ -69,13 +70,15 @@ describe('dispatch state and compatibility', () => {
     expect(cancelled.completedMissions).toBe(game.completedMissions);
     expect(cancelled.activeMissionId).toBeNull();
     expect(cancelMission(cancelled)).toEqual(cancelled);
-    expect(acceptMission(cancelled, contracts[2].id).activeMissionId).toBe(contracts[2].id);
+    expect(() => acceptMission(cancelled, accepted.activeMissionId!)).toThrow('Unknown or expired');
+    expect(acceptMission(cancelled, offeredContracts(cancelled)[0].id).activeMissionId).not.toBeNull();
   });
   it('restores active and cancelled mission state through storage and JSON backups', () => {
     const store = new Map<string, string>();
     vi.stubGlobal('localStorage', { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => store.set(key, value) });
-    for (const contract of contracts.filter(c => c.origin === 'PADQ')) {
-      const accepted = acceptMission(createGame('Island Air'), contract.id);
+    const game = createGame('Island Air');
+    for (const contract of offeredContracts(game)) {
+      const accepted = acceptMission(game, contract.id);
       localSaveRepository.save(accepted);
       expect(localSaveRepository.load()).toEqual(accepted);
       expect(parseSave(JSON.stringify(accepted))).toEqual(accepted);
@@ -87,7 +90,7 @@ describe('dispatch state and compatibility', () => {
   it('rejects invalid mission state rather than silently discarding it', () => {
     for (const id of ['missing-mission', 3, {}, false]) expect(() => parseSave(JSON.stringify({ ...createGame('Test'), activeMissionId: id }))).toThrow('unsupported mission');
   });
-  it('defines five unique, complete Kodiak-area contract briefs', () => {
+  it('preserves the legacy briefs for old saves without offering them on new boards', () => {
     expect(contracts.filter(c => c.origin === 'PADQ')).toHaveLength(5);
     expect(new Set(contracts.map(c => c.id)).size).toBe(contracts.length);
     for (const contract of contracts) {

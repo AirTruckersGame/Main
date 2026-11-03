@@ -1,3 +1,4 @@
+import type { Contract } from './missions';
 export type Delivery = 'completed' | 'diverted' | 'incomplete';
 export type Landing = 'normal' | 'hard';
 export interface FlightDraft {
@@ -12,6 +13,7 @@ export interface FlightDraft {
   notes: string;
 }
 export interface FlightEntry {
+  contract?: Contract;
   id: string; missionId: string; title: string; aircraftId: string;
   origin: string; plannedDestination: string; arrival: string;
   payload: string; proposedPayout: number; revenue: number;

@@ -17,15 +17,34 @@ const variants: Record<string, string[]> = {
   completedCargo: ['Cargo delivered. Revenue is in the company account.', 'Load delivered, books updated. Nicely done.', 'Cargo receipt logged. The company gets the revenue; salary stays separate.'],
   completedPassenger: ['Charter complete. Company revenue posted.', 'Passengers delivered, report filed. A quiet finish is a good finish.', 'Charter revenue logged. Thanks for bringing everyone through.'],
 };
+
+const categoryNotes: Record<string, [string, string, string]> = {
+  'General cargo': ['Check the load, then the route. The boxes can wait.', 'Ordinary freight still deserves proper restraints.', 'Manifest ready. Keep the cargo where you put it.'],
+  'Commercial resupply': ['Restock booked. The shelf labels are not a departure clearance.', 'The shop can wait for a sensible flight.', 'Supply run noted. Count the cartons before you close up.'],
+  'Medical logistics': ['Routine clinic logistics, not an emergency clearance.', 'Keep the medical packaging intact. Safe arrival comes first.', 'Clinic supplies booked. No heroics on the paperwork.'],
+  'Government / infrastructure': ['Public works load noted. Check the declared contents.', 'The maintenance crew will plan around a safe arrival.', 'Infrastructure job booked. Survey stakes make poor loose baggage.'],
+  'Priority freight': ['Priority is a billing label, not a weather forecast.', 'Urgent freight booked. The safety margins stay ordinary.', 'They would like it soon. We would like it there intact.'],
+  'Community delivery': ['Community load booked. Small boxes, useful work.', 'The volunteers can adjust their schedule to yours.', 'Local delivery noted. Keep the labelled sets together.'],
+  'Passenger charter': ['Charter booked. Brief the cabin before the view distracts everyone.', 'Seats reserved. Check actual weights, not optimistic guesses.', 'Passenger job noted. A calm flight starts with a calm briefing.'],
+};
+for (const [category, notes] of Object.entries(categoryNotes)) {
+  variants[`accepted:${category}`] = notes;
+  variants[`completed:${category}`] = [
+    `${category} delivery recorded. Company revenue posted.`,
+    `${category} assignment closed. We will find a different story for the next leg.`,
+    `${category} report received. Company books updated; salary remains separate.`,
+  ];
+}
+
 export function selectDialogue(event: DialogueEvent, contract: Contract | undefined, report: FlightDraft | undefined, recent: string[]): DispatcherLine {
   let context: string = event;
-  if (event === 'accepted') context = contract?.type === 'Passenger charter' ? 'acceptedPassenger' : 'acceptedCargo';
+  if (event === 'accepted') context = contract?.generated ? `accepted:${contract.generated.category}` : contract?.type === 'Passenger charter' ? 'acceptedPassenger' : 'acceptedCargo';
   if (event === 'submitted' && report) {
     if (report.delivery !== 'completed') context = report.delivery + (report.landing === 'hard' ? 'Hard' : '');
     else if (report.landing === 'hard') context = 'hard';
     else if (Number(report.estimatedMinutes) > 0 && Number(report.minutes) > Number(report.estimatedMinutes) * 1.25) context = 'longer';
     else if (report.estimatedFuelLb !== '' && Number(report.estimatedFuelLb) > 0 && report.fuelLb !== '' && Number(report.fuelLb) > Number(report.estimatedFuelLb) * 1.25) context = 'fuel';
-    else context = contract?.type === 'Passenger charter' ? 'completedPassenger' : 'completedCargo';
+    else context = contract?.generated ? `completed:${contract.generated.category}` : contract?.type === 'Passenger charter' ? 'completedPassenger' : 'completedCargo';
   }
   const pool = variants[context] ?? variants.draft;
   // Choose an unused variant, then the least recently used when the pool is exhausted.

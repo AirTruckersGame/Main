@@ -1,6 +1,7 @@
+import { acceptLegacyMission as acceptMission } from '../tests/legacy';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { acceptMission, cancelMission, createGame, localSaveRepository, parseSave, reportFor, saveFlightDraft, submitFlightReport, SAVE_KEY } from './game';
+import { cancelMission, createGame, localSaveRepository, parseSave, reportFor, saveFlightDraft, submitFlightReport, SAVE_KEY } from './game';
 import { availableContracts, contracts } from './missions';
 import { selectDialogue } from './dialogue';
 import type { FlightDraft } from './reports';
@@ -114,7 +115,7 @@ describe('flight report lifecycle', () => {
 describe('migration and atomic local commits', () => {
   function oldSave(activeMissionId?: string) {
     const game = createGame('Legacy');
-    const { activeFlightId: _1, pendingReport: _2, logbook: _3, dispatcher: _4, recentDialogue: _5, revision: _6, activeMissionId: _7, ...legacy } = game;
+    const { activeFlightId: _1, pendingReport: _2, logbook: _3, dispatcher: _4, recentDialogue: _5, revision: _6, activeMissionId: _7, dispatch: _8, activeContract: _9, ...legacy } = game;
     return { ...legacy, company: { ...legacy.company, cash: 19750 }, completedMissions: 3, flightHours: 8.25, ...(activeMissionId ? { activeMissionId } : {}) };
   }
   it('migrates v0.1 aggregates without inventing historical reports', () => {
