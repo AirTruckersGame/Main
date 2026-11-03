@@ -74,7 +74,7 @@ describe('FAA metadata-derived chart catalog (synthetic parser fixture, not live
   it('proxies PDFs only from the selected airport catalog and checks PDF signatures', async () => {
     vi.useFakeTimers(); vi.setSystemTime(now);
     const fetcher = vi.fn(async (url: unknown) => {
-      if (String(url).endsWith('/dtpp/')) return new Response('<a href="https://aeronav.faa.gov/d-tpp/2611/xml_data/d-tpp_Metafile.xml">Index</a>');
+      if (String(url).endsWith('/dtpp/search/')) return new Response('<a href="https://aeronav.faa.gov/d-tpp/2611/xml_data/d-tpp_Metafile.xml">Index</a>');
       if (String(url).endsWith('.xml')) return new Response(xml);
       return new Response('%PDF-1.4\nTEST FIXTURE ONLY');
     });
@@ -117,5 +117,43 @@ describe('mission approach pins and migrations', () => {
     const finished = submitFlightReport(game, game.pendingReport);
     const { pinnedApproach: _pin, ...oldFinished } = finished;
     expect(parseSave(JSON.stringify(oldFinished)).logbook).toEqual(finished.logbook);
+  });
+});
+
+describe('recorded official AWC / FAA responses (historical regression fixtures)', () => {
+  const search = readFileSync(new URL('../tests/fixtures/faa-search-2026-11.html', import.meta.url), 'utf8');
+  const padqXml = readFileSync(new URL('../tests/fixtures/faa-padq-2611.xml', import.meta.url), 'utf8');
+  it('discovers the explicit XML link, not unrelated navigation cycles or ZIP dates', () => {
+    expect(discoverCycles(search + '<a href="https://aeronav.faa.gov/d-tpp/2699/frntmatter.pdf">Unrelated</a>')).toEqual(['2611']);
+    expect(discoverCycles('<a href="https://aeronav.faa.gov/upload_313-d/terminal/DDTPPE_261029.zip">ZIP</a>')).toEqual([]);
+  });
+  it('parses actual PADQ approaches, airport diagram and obstacle departures from FAA XML', () => {
+    const data = parseFaaIndex(padqXml, 'PADQ', '2611', now);
+    expect(data.charts.filter(chart => chart.type === 'IAP').map(chart => chart.title)).toEqual(['ILS Y OR LOC Y RWY 26', 'RNAV (GPS) RWY 26', 'VOR RWY 26']);
+    expect(data.charts.find(chart => chart.type === 'APD')?.url).toBe('https://aeronav.faa.gov/d-tpp/2611/01238AD.PDF');
+    expect(data.charts.filter(chart => chart.type === 'ODP')).toHaveLength(2);
+    expect(data.status).toBe('current');
+    expect(parseFaaIndex(padqXml, 'PADQ', '2611', Date.parse('2026-11-26T09:01:00Z')).status).toBe('outdated');
+  });
+  it('parses actual recorded AWC raw text and observation/issue UTC timestamps without invention', () => {
+    for (const kind of ['metar', 'taf'] as const) {
+      const records = JSON.parse(readFileSync(new URL(`../tests/fixtures/awc-padq-${kind}-2026-11.json`, import.meta.url), 'utf8'));
+      const result = decodeWeather(records, 'PADQ', kind, new Date(now).toISOString());
+      expect(result.raw).toBe(kind === 'metar' ? records[0].rawOb : records[0].rawTAF);
+      expect(result.reportTime).toBe(kind === 'metar' ? '2026-11-02T23:53:00.000Z' : '2026-11-02T23:40:00.000Z');
+    }
+  });
+  it('uses the verified FAA search-page path and wildcard Accept header through the full service', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(now);
+    const fetcher = vi.fn(async (url: unknown, init?: RequestInit) => {
+      expect((init?.headers as Record<string, string>).Accept).toBe('*/*');
+      if (String(url).endsWith('/dtpp/search/')) return new Response(search);
+      if (String(url).endsWith('/2611/xml_data/d-tpp_Metafile.xml')) return new Response(padqXml);
+      throw new Error('Unexpected provider URL');
+    });
+    const service = createEfbService(fetcher);
+    const result = await service('GET', new URL('https://local/api/efb?action=charts&airport=PADQ'));
+    expect(result.status).toBe(200); expect((result.body as { charts: Chart[] }).charts).toHaveLength(6);
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

@@ -2,7 +2,8 @@ import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { airportId, FAA_DTPP, type Chart, type ChartCatalog, type WeatherKind, type WeatherReport, validChart, chartCurrent } from '../src/efbData';
 export type Fetcher = typeof fetch;
 export async function upstream(url: string, fetcher: Fetcher = fetch): Promise<Response> {
-  return fetcher(url, { signal: AbortSignal.timeout(8000), redirect: 'error', headers: { Accept: 'application/json, application/xml, text/html, application/pdf', 'User-Agent': 'AirTruckers-Simulator-EFB/0.4' } });
+  // FAA's XML host returns 406 for application/xml; wildcard Accept was verified live.
+  return fetcher(url, { signal: AbortSignal.timeout(8000), redirect: 'error', headers: { Accept: '*/*', 'User-Agent': 'AirTruckers-Simulator-EFB/0.4' } });
 }
 export async function boundedBody(response: Response, max: number): Promise<Uint8Array> {
   if (Number(response.headers.get('content-length')) > max) throw new Error('Provider response is too large.');
@@ -70,7 +71,7 @@ export function parseFaaIndex(xml: string, requestedAirport: string, expectedCyc
       const records = Array.isArray(value.record) ? value.record : value.record ? [value.record] : [];
       for (const raw of records) {
         const record = raw as Record<string, unknown>;
-        if (typeof record.pdf_name !== 'string' || !/^[a-zA-Z0-9_-]+\.pdf$/i.test(record.pdf_name) || typeof record.chart_name !== 'string' || !['IAP', 'APD', 'DP', 'STAR'].includes(String(record.chart_code))) continue;
+        if (typeof record.pdf_name !== 'string' || !/^[a-zA-Z0-9_-]+\.pdf$/i.test(record.pdf_name) || typeof record.chart_name !== 'string' || !['IAP', 'APD', 'DP', 'ODP', 'STAR'].includes(String(record.chart_code))) continue;
         const chart = { airport, title: record.chart_name, type: record.chart_code, cycle: expectedCycle, url: `https://aeronav.faa.gov/d-tpp/${expectedCycle}/${record.pdf_name}`, effectiveFrom, effectiveTo, metadataUrl } as Chart;
         if (validChart(chart) && !charts.some(c => c.url === chart.url && c.title === chart.title)) charts.push(chart);
       }
@@ -81,13 +82,13 @@ export function parseFaaIndex(xml: string, requestedAirport: string, expectedCyc
   return { airport, charts, status: Date.parse(effectiveFrom) <= now && now < Date.parse(effectiveTo) ? 'current' : 'outdated', cycle: expectedCycle, effectiveFrom, effectiveTo, retrievedAt: new Date(now).toISOString() };
 }
 export function discoverCycles(html: string): string[] {
-  // Only cycle references actually present on the official FAA product page.
-  return [...new Set(Array.from(html.matchAll(/(?:https:\/\/aeronav\.faa\.gov)?\/d-tpp\/(\d{4})\//g), match => match[1]))].sort().reverse().slice(0, 3);
+  // Use only XML links on the official FAA search page; never infer cycles from ZIP dates or unrelated links.
+  return [...new Set(Array.from(html.matchAll(/(?:https:\/\/aeronav\.faa\.gov)?\/d-tpp\/(\d{4})\/xml_data\/d-tpp_Metafile\.xml/g), match => match[1]))].sort().reverse().slice(0, 3);
 }
 export async function getCatalog(airport: string, fetcher: Fetcher = fetch): Promise<ChartCatalog> {
-  const page = await upstream(FAA_DTPP, fetcher); checkResponse(page);
+  const page = await upstream(`${FAA_DTPP}search/`, fetcher); checkResponse(page);
   const cycles = discoverCycles(new TextDecoder().decode(await boundedBody(page, 4_000_000)));
-  if (!cycles.length) throw new Error('No supported FAA publication index was discovered. Automatic indexing needs verification.');
+  if (!cycles.length) throw new Error('No supported FAA publication index was discovered. The FAA search-page metadata format may have changed.');
   let latest: ChartCatalog | undefined;
   for (const cycle of cycles) {
     const index = await upstream(`https://aeronav.faa.gov/d-tpp/${cycle}/xml_data/d-tpp_Metafile.xml`, fetcher);

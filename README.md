@@ -86,16 +86,16 @@ Browser automation during development exercises draft refresh, validation, revie
 
 ## Flight Planning & Electronic Flight Bag
 
-### Integration status — important release limitation
+### Live integration status
 
-The environment's outbound proxy denied AWC and FAA domains with HTTP 403 at CONNECT. No live METAR/TAF, FAA publication page, national XML index or real FAA plate could be fetched or verified during development. **The FAA indexing adapter is experimental and is not a verified Kodiak proof of concept.** The code attempts automatic discovery and fails closed with Data Unavailable when metadata cannot be validated. It does not bundle a fabricated or stale chart catalog. Live integration remains incomplete until access is enabled and the official formats and a genuine plate are verified.
+Live verification succeeded on November 2, 2026 (Eastern; requests at 2026-11-03T00:40–00:47Z). The same Vercel-compatible endpoint used by Vite returned actual PADQ METAR/TAF reports, current FAA XML metadata and a genuine PADQ approach PDF, rendered by the integrated PDF.js viewer in Chromium. See [the verification record](docs/live-verification.md) for exact sources, chart titles, timestamps, hashes and outstanding checks.
 
-Required outbound hosts: `aviationweather.gov`, `www.faa.gov`, `aeronav.faa.gov`. These were added to the environment configuration draft for review; saving that draft did not activate them in this running environment or publish anything. The deployed server will need normal HTTPS access to those hosts. No API credentials are currently required by this implementation.
+Required outbound hosts are `aviationweather.gov`, `www.faa.gov`, and `aeronav.faa.gov`. Network access is now working in this environment. No static catalog is substituted if an official request fails. Actual Vercel egress/function packaging and physical iPad Safari behavior remain preview/device acceptance checks; no deployment was performed.
 
 ### Official sources and proxy
 
 - AWC API documentation: https://aviationweather.gov/data/api/
-- Server request paths: `https://aviationweather.gov/api/data/metar?ids=PADQ&format=json` and the equivalent `taf` resource. These request formats and field mappings still need live confirmation in this environment.
+- Server request paths: `https://aviationweather.gov/api/data/metar?ids=PADQ&format=json` and the equivalent `taf` resource. The JSON formats, raw text and UTC observation/issue field mappings were confirmed live for PADQ.
 - FAA d-TPP publication page: https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dtpp/
 - FAA IFR enroute collection: https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/ifr/
 - FAA VFR sectional collection: https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/vfr/
@@ -108,11 +108,11 @@ Provider requests use 8-second timeouts, bounded response sizes, a 60-second wea
 
 ### FAA catalog/update strategy
 
-`action=charts&airport=PADQ` reads the official publication page, discovers up to three cycle references actually present there, then tries the known d-TPP XML convention:
+`action=charts&airport=PADQ` reads the official [FAA terminal-procedures search page](https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dtpp/search/), discovers up to three explicit d-TPP Metafile XML links, then retrieves the referenced indexes:
 
 `https://aeronav.faa.gov/d-tpp/{cycle}/xml_data/d-tpp_Metafile.xml`
 
-This URL convention and XML adapter have **not been live-verified here**. There is no calendar-derived hardcoded current cycle. The parser requires a matching `digital_tpp` cycle and explicit `from_edate`/`to_edate` UTC interval, matches `icao_ident` or `apt_ident` exactly, and uses only supplied `chart_name`, `chart_code` (IAP/APD/DP/STAR) and a safe `pdf_name`. PDF URLs are assembled only under that index's official FAA cycle directory. Invalid filenames, entities/DOCTYPE declarations, missing dates or unknown formats fail closed. No procedure type or airport availability is assumed. Unsupported FAA format changes require updating the adapter and tests.
+This URL convention and XML schema were verified live for cycle 2611. The product landing page lists date-coded ZIP downloads rather than cycle links; the search page provides the authoritative XML link. No cycle is inferred from ZIP dates, unrelated page links or the calendar. The XML host returned HTTP 406 for the previous mixed Accept header and even explicit application/xml; requests now use the verified `Accept: */*`. There is no hardcoded current cycle. The parser requires a matching `digital_tpp` cycle and explicit `from_edate`/`to_edate` UTC interval, matches `icao_ident` or `apt_ident` exactly, and uses only supplied `chart_name`, `chart_code` (IAP/APD/DP/ODP/STAR) and a safe `pdf_name`. PDF URLs are assembled only under that index's official FAA cycle directory. Invalid filenames, entities/DOCTYPE declarations, missing dates or unknown formats fail closed. No procedure type or airport availability is assumed. Unsupported FAA format changes require updating the adapter and tests.
 
 National publication documents are cached up to one hour, airport catalogs five minutes; effective intervals are rechecked even on cache hits. An expired/future cycle is explicitly marked **not current**, never silently relabeled. The browser updates date labels at publication boundaries and when returning from the background; publication time never advances the operational game clock. A valid empty index match displays no published terminal charts/approaches; index retrieval failures display Data Unavailable instead.
 
@@ -126,23 +126,32 @@ IFR enroute and VFR sectional collections are external official links only; inte
 
 ### EFB validation and acceptance
 
-Run `npm test` and `npm run build`. Added tests cover exact station handling, No Report vs Data Unavailable, partial provider failure, retry caching, invalid parameters/links, metadata-only chart selection, cycle/date validation, pin persistence/migration, publication expiry and viewer fallback. XML/JSON/PDF fixtures are explicitly **synthetic** and do not assert that any procedure or report actually exists at Kodiak or its destinations. No synthetic catalog is used as application data.
+Run `npm test` and `npm run build`. Added tests cover exact station handling, No Report vs Data Unavailable, partial provider failure, retry caching, invalid parameters/links, metadata-only chart selection, cycle/date validation, pin persistence/migration, publication expiry and viewer fallback. Both explicitly synthetic edge-case fixtures and recorded official AWC/FAA regression fixtures are included. Recorded responses are historical test data, never a production catalog or weather fallback; their publication times are fixed in tests. No fixture catalog is used as application data.
 
-Browser checks with synthetic network/PDF fixtures verify actual opaque PDF canvas pixels, zoom, touch pinch, panning controls, fit/full-screen, pin persistence, report edits retained across EFB navigation, errors/fallback and 1366/1024/768/390px layouts. Existing post-flight reporting browser checks were also rerun. These are not live FAA/AWC integration tests. **Actual portrait/landscape iPad Safari testing must be performed by the user.**
+Browser checks with synthetic network/PDF fixtures verify actual opaque PDF canvas pixels, zoom, touch pinch, panning controls, fit/full-screen, pin persistence, report edits retained across EFB navigation, errors/fallback and 1366/1024/768/390px layouts. Existing post-flight reporting browser checks were also rerun. Separately, live PADQ weather and a genuine cycle-2611 approach were verified through the endpoint and integrated viewer, including actual opaque PDF pixels, pinch zoom, drag panning and pin/change/reload. API failure display was tested through controlled browser fault injection, not by claiming a live AWC outage. **Actual portrait/landscape iPad Safari testing must be performed by the user.**
 
-After outbound access is enabled, before release:
+Repeat the opt-in, read-only live check against a running server:
 
-1. Check a real PADQ METAR and TAF against the AWC official source, including absent and failed reports independently at destinations. Confirm no station substitution.
-2. Verify the FAA publication-page links and XML schema against `server/providers.ts`; update the adapter if the provider differs. Confirm a current publication interval and genuine listed procedure title/PDF for PADQ and selected destination airports. If this cannot be done, keep the catalog explicitly unavailable.
-3. Open a genuine FAA plate inside the app on iPad Safari; check legibility, touch pinch, panning, fit-to-width, page/full-screen controls and the external fallback. Do not treat the synthetic fixture rendering as this acceptance step.
-4. Pin an actual available current approach, refresh, return from Flight Operations with Pinned Approach, change it, export JSON and confirm the pin. Verify no cash, hours, report or operational-time changes from fetching/viewing/pinning.
-5. Check no-procedure airports, an outdated pin, provider outage, and lack of a current catalog. Do not claim availability or currency from a failed request.
+```sh
+npm run dev
+# In a second terminal (or set AIRTRUCKERS_LIVE_BASE_URL to an approved preview origin):
+npm run verify:live
+```
+
+The check requests actual PADQ METAR/TAF reports, records whether PALB currently has a TAF, requires current FAA PADQ approaches/diagram, downloads an index-listed PDF and outputs its SHA-256. It performs no company mutations. Live checks are intentionally separate from deterministic `npm test`: source outages, rate limits, expired cycles or a temporarily absent PADQ report will fail the live check rather than fabricate a passing result.
+
+Before release:
+
+1. On an approved Vercel preview, run `AIRTRUCKERS_LIVE_BASE_URL=https://YOUR_PREVIEW_ORIGIN npm run verify:live`. Confirm server egress to both providers, content negotiation, XML parse time/memory, response sizes, function duration and `/api/efb` routing. Preview protection may require opening access for this read-only verifier; do not put access credentials in the script.
+2. Open Flight Planning on the preview. Check browser requests remain same-origin for weather, XML/catalog and PDF; verify the bundled PDF worker loads with the correct MIME type and no CORS/CSP errors. An external official open/download link is navigation, not a cross-origin JavaScript fetch.
+3. On actual portrait/landscape iPad Safari, open a current genuine approach, use pinch/drag/fit/full-screen, pin it, refresh, return via Pinned Approach and change it. Confirm game finances, location and operational time stay unchanged.
+4. Check unavailable reports, a stale pin, missing procedures and controlled proxy failures. Do not claim availability or currency from a failed request. The recorded cycle-2611 chart list is evidence of that verification only, not a promise of future chart availability.
 
 ## Vercel deployment preparation (nothing deployed)
 
 Full EFB functionality now requires a server function; a static-only GitHub Pages upload cannot provide weather/chart/PDF proxies. `vercel.json` selects Vite, builds with `npm run build`, publishes `dist`, and configures `api/efb.ts` with a 60-second maximum duration. Use Node 22.12+ (Node 24 recommended), install via `npm ci`, and retain `api/`, `server/` and `src/efbData.ts` in the repository so Vercel can build the function. No SPA catch-all rewrite should capture `/api/efb`.
 
-Vite development includes the API middleware. `npm run preview` is static-only; use Vercel local development or a separately tested server for production API validation. Build and mocked function tests passed, but an actual Vercel function deployment has not been performed or verified. HTTPS is recommended; existing IndexedDB save coordination supports browsers without Web Locks. Do not deploy until the outstanding live FAA/AWC and actual iPad checks are completed and release approval is given.
+Vite development includes the API middleware. `npm run preview` is static-only; use Vercel local development or a separately tested server for production API validation. Production build, deterministic tests and local live endpoint/browser checks passed, but actual Vercel function deployment, provider permission for Vercel egress IPs and deployment-specific CSP/worker behavior have not been verified. HTTPS is recommended; existing IndexedDB save coordination supports browsers without Web Locks. Do not deploy until the outstanding Vercel-preview and actual iPad checks are completed and release approval is given.
 
 ## Architecture and limitations
 
@@ -161,6 +170,6 @@ Vite development includes the API middleware. `npm run preview` is static-only; 
 - `src/main.tsx`: workspace shell, company creation, dashboard, fleet, settings and shared save boundary.
 - `src/style.css`: responsive interface with system-font fallbacks for optional Google Fonts.
 - `src/game.test.ts`, `src/flights.test.ts`, `src/storageGate.test.ts`: existing domain/migration/persistence tests.
-- `src/efb.test.ts`, `src/ChartViewer.test.tsx`, `tests/fixtures/`: synthetic EFB provider, pin, expiry and viewer tests.
+- `src/efb.test.ts`, `src/ChartViewer.test.tsx`, `tests/fixtures/`: synthetic plus recorded-official EFB provider, pin, expiry and viewer tests; `scripts/verify-live.mjs` is the opt-in live endpoint check.
 
 Version 0.4 uses only the first aircraft and owner/pilot. No simulator connection, verified performance calculations, airport database, repositioning, interrupted-delivery resumption, automatic payroll/expenses, aircraft purchases, employee hiring, interactive checklists, integrated enroute browsing, logbook editing/undo, backup import or cloud saving is implemented. Clearing an accepted mission is a cancellation, not flight reporting; only submit a report when the flying should count.

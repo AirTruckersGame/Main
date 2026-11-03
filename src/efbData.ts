@@ -8,7 +8,7 @@ export function airportId(value: unknown): string {
 export type WeatherKind = 'metar' | 'taf';
 export interface WeatherReport { status: 'available' | 'missing' | 'unavailable'; airport: string; kind: WeatherKind; raw?: string; reportTime?: string; decoded?: string[]; retrievedAt: string; message?: string; }
 export function weatherLabel(status: WeatherReport['status']): string { return status === 'missing' ? 'No Report' : status === 'unavailable' ? 'Data Unavailable' : 'Report available'; }
-export type ChartType = 'IAP' | 'APD' | 'DP' | 'STAR';
+export type ChartType = 'IAP' | 'APD' | 'DP' | 'ODP' | 'STAR';
 export interface Chart { airport: string; title: string; type: ChartType; cycle: string; url: string; effectiveFrom: string; effectiveTo: string; metadataUrl: string; }
 export interface ChartCatalog { airport: string; status: 'current' | 'outdated' | 'unavailable'; charts: Chart[]; retrievedAt: string; message?: string; cycle?: string; effectiveFrom?: string; effectiveTo?: string; }
 export interface PinnedApproach { flightId: string; chart: Chart; }
@@ -17,7 +17,7 @@ export function validChartUrl(value: unknown): value is string {
   return /^https:\/\/aeronav\.faa\.gov\/d-tpp\/\d{4}\/[a-zA-Z0-9_-]+\.pdf$/i.test(value) && new URL(value).hostname === 'aeronav.faa.gov';
 }
 export function validChart(value: Chart): boolean {
-  if (!value || !validChartUrl(value.url) || typeof value.title !== 'string' || !value.title.trim() || value.title.length > 300 || !['IAP', 'APD', 'DP', 'STAR'].includes(value.type) || typeof value.airport !== 'string' || !/^[A-Z0-9]{3,4}$/.test(value.airport) || !/^\d{4}$/.test(value.cycle)) return false;
+  if (!value || !validChartUrl(value.url) || typeof value.title !== 'string' || !value.title.trim() || value.title.length > 300 || !['IAP', 'APD', 'DP', 'ODP', 'STAR'].includes(value.type) || typeof value.airport !== 'string' || !/^[A-Z0-9]{3,4}$/.test(value.airport) || !/^\d{4}$/.test(value.cycle)) return false;
   return value.url.split('/')[4] === value.cycle && value.metadataUrl === `https://aeronav.faa.gov/d-tpp/${value.cycle}/xml_data/d-tpp_Metafile.xml` && Number.isFinite(Date.parse(value.effectiveFrom)) && Date.parse(value.effectiveTo) > Date.parse(value.effectiveFrom);
 }
 export function chartCurrent(chart: Chart, now = Date.now()): boolean { return validChart(chart) && Date.parse(chart.effectiveFrom) <= now && now < Date.parse(chart.effectiveTo); }
