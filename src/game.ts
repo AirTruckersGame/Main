@@ -1,3 +1,4 @@
+import { initialChecklists, validateChecklists, type ChecklistState } from './checklists';
 import { chartCurrent, validChart, type ChartCatalog, type Chart, type PinnedApproach } from './efbData';
 import { withSaveCoordination } from './storageGate';
 import { findContract, type Contract } from './missions';
@@ -7,6 +8,7 @@ import { selectDialogue, type DialogueEvent, type DispatcherLine } from './dialo
 export interface Aircraft { id: string; model: string; location: string; hours: number; ownership: 'owned'; maintenance: 'Airworthy' }
 export interface Pilot { id: string; role: 'Owner / Pilot'; annualSalary: number; }
 export interface Game {
+  checklists: ChecklistState;
   dispatch: DispatchState; activeContract: Contract | null;
   version: 1; company: { name: string; cash: number; headquarters: string; reputation: number };
   aircraft: Aircraft[]; pilots: Pilot[]; completedMissions: number; flightHours: number;
@@ -16,7 +18,7 @@ export interface Game {
 }
 export const SAVE_KEY = 'airtruckers.save.v1';
 export function createGame(name: string, seed = newFlightId()): Game {
-  return { dispatch: refreshBoard(initialDispatch(seed), 'PADQ', '2026-06-01T08:00:00.000Z'), activeContract: null, pinnedApproach: null, activeMissionId: null, activeFlightId: null, pendingReport: null, logbook: [], recentDialogue: [], dispatcher: null, revision: 0, version: 1, company: { name: name.trim(), cash: 25000, headquarters: 'PADQ', reputation: 50 }, aircraft: [{ id: 'N208AT', model: 'Cessna 208B Grand Caravan EX', location: 'PADQ', hours: 0, ownership: 'owned', maintenance: 'Airworthy' }], pilots: [{ id: 'owner', role: 'Owner / Pilot', annualSalary: 65000 }], completedMissions: 0, flightHours: 0, operationalTime: '2026-06-01T08:00:00.000Z' };
+  return { checklists: initialChecklists(), dispatch: refreshBoard(initialDispatch(seed), 'PADQ', '2026-06-01T08:00:00.000Z'), activeContract: null, pinnedApproach: null, activeMissionId: null, activeFlightId: null, pendingReport: null, logbook: [], recentDialogue: [], dispatcher: null, revision: 0, version: 1, company: { name: name.trim(), cash: 25000, headquarters: 'PADQ', reputation: 50 }, aircraft: [{ id: 'N208AT', model: 'Cessna 208B Grand Caravan EX', location: 'PADQ', hours: 0, ownership: 'owned', maintenance: 'Airworthy' }], pilots: [{ id: 'owner', role: 'Owner / Pilot', annualSalary: 65000 }], completedMissions: 0, flightHours: 0, operationalTime: '2026-06-01T08:00:00.000Z' };
 }
 export function advanceTime(game: Game, hours: number): Game {
   if (!Number.isFinite(hours) || hours <= 0 || hours > 168) throw new Error('Advance between 1 and 168 hours.');
@@ -60,7 +62,7 @@ export function parseSave(raw: string): Game {
     dispatch = refreshBoard(dispatch, g.aircraft[0].location, g.operationalTime);
   }
   validateDispatch(dispatch);
-  const n: Game = { ...normalized, dispatch, activeContract: g.activeContract === undefined ? (contract ? cloneContract(contract) : null) : g.activeContract, pinnedApproach: normalized.pinnedApproach === undefined ? null : normalized.pinnedApproach };
+  const n: Game = { ...normalized, checklists: g.checklists === undefined ? initialChecklists() : validateChecklists(g.checklists), dispatch, activeContract: g.activeContract === undefined ? (contract ? cloneContract(contract) : null) : g.activeContract, pinnedApproach: normalized.pinnedApproach === undefined ? null : normalized.pinnedApproach };
   if (!Number.isSafeInteger(n.revision) || n.revision < 0 || !Array.isArray(n.logbook) || !Array.isArray(n.recentDialogue) || n.recentDialogue.length > 6 || !n.recentDialogue.every(id => typeof id === 'string') || (n.dispatcher !== null && (!n.dispatcher || typeof n.dispatcher.id !== 'string' || typeof n.dispatcher.text !== 'string')) || (n.activeMissionId === null ? n.activeFlightId !== null || n.pendingReport !== null : typeof n.activeFlightId !== 'string' || !n.activeFlightId || contract?.origin !== n.aircraft[0].location)) throw new Error('Invalid flight state. Your stored data has not been changed.');
   if ((n.activeMissionId === null) !== (n.activeContract === null) || (n.activeContract && n.activeContract.id !== n.activeMissionId)) throw new Error('Invalid active contract snapshot.');
   n.logbook.forEach(validateEntry);
