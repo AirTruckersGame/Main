@@ -1,8 +1,9 @@
 import type { Contract } from './missions';
 import type { WeatherReport } from './efbData';
-export type MissionSymbol = 'cargo' | 'tools' | 'medical' | 'utility' | 'people' | 'documents' | 'fish' | 'education';
+export type MissionSymbol = 'cargo' | 'tools' | 'medical' | 'utility' | 'people' | 'documents' | 'fish' | 'education' | 'repositioning';
 export function missionSymbol(contract: Contract): { kind: MissionSymbol; label: string } {
   const text = `${contract.generated?.category ?? ''} ${contract.generated?.templateId ?? ''} ${contract.title} ${contract.payload}`.toLowerCase();
+  if (contract.type === 'Repositioning') return { kind: 'repositioning', label: 'Empty repositioning flight' };
   if (contract.type === 'Passenger charter') return { kind: 'people', label: 'Passenger charter' };
   if (/medical|clinic|dressings|diagnostic|mobility/.test(text)) return { kind: 'medical', label: 'Medical logistics' };
   if (/workshop|tools|hardware|bearings|pump/.test(text)) return { kind: 'tools', label: 'Tools and maintenance cargo' };

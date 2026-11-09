@@ -1,4 +1,4 @@
-# Dynamic dispatch v0.5A — boundaries and provenance
+# Dynamic dispatch — boundaries and provenance
 
 ## Source and route scope
 
@@ -14,9 +14,9 @@ https://aviationweather.gov/api/data/airport?ids=PALB,PADY,PAKH,PAOO,PORI,PADQ,P
 | PAHO | Homer | 59.6455 | -151.4766 |
 | PAEN | Kenai | 60.5733 | -151.2448 |
 
-Only PADQ–PALB, PADQ–PAKH, PADQ–PAHO, PADQ–PAEN and PAHO–PAEN are generated (in either direction). This intentionally limited network provides island cargo and mainland connections without assuming an unverified runway, service or approach. Distances use the haversine formula with Earth radius 3440.065 NM and are rounded; they are not routed flight-plan distances or aircraft-performance calculations.
+Paying jobs can depart from any of these five airports to any of the other four. This intentionally limited network provides island cargo and mainland connections without assuming an unverified runway, service or approach. Distances use the haversine formula with Earth radius 3440.065 NM and are rounded; they are not routed flight-plan distances or aircraft-performance calculations.
 
-The legacy v0.4 `PADY = Old Harbor` association is wrong: the official record is **Kongiganak**, at 59.9616, -162.8806. No such pairing is used in new assignments. Old records and accepted jobs are preserved exactly, with an explicit warning for the known mislabel. The former Old Harbor, Ouzinkie and Port Lions routes are not newly generated until their identity/route data is separately curated. Legacy aircraft locations outside the five-airport network retain their raw saved identifiers and show no new work. The app does not silently move an aircraft or rewrite a pin to repair old geographic data. No user-approved reposition/location repair feature is included in this release.
+The legacy v0.4 `PADY = Old Harbor` association is wrong: the official record is **Kongiganak**, at 59.9616, -162.8806. No such pairing is used in new assignments. Old records and accepted jobs are preserved exactly, with an explicit warning for the known mislabel. The former Old Harbor, Ouzinkie and Port Lions routes are not newly generated until their identity/route data is separately curated. Locations outside the five-airport network retain their saved identifiers and offer an empty return to Kodiak with distance unavailable. The aircraft stays at its recorded location until the player reports a flight.
 
 ## Separation of responsibilities
 
@@ -30,7 +30,7 @@ The legacy v0.4 `PADY = Old Harbor` association is wrong: the official record is
 
 The generator is deterministic per saved seed, event sequence, location and operational slot; new-company seed creation itself is cryptographically random. Assignment serials are never reused. Cancellations retire instances, and a completed instance cannot be accepted or paid again. Offers and accepted work are snapshots; refreshing expired slots changes the available set, not an existing card's amount or text.
 
-There are 21 storylines, 24 fictional brokerage/customer names, seven categories and grouped payload families. Only the last six reported assignments are excluded globally. This avoids immediate round-trip repetition, not all repetition forever. Unexpired cards are retained when arrival events top up a board, except when they conflict with newly recorded recent work. It is possible to have no offered return; advance operational time to another slot to look again. No real-time expiry, manual infinite-reroll button, dynamic demand economy or route-performance certification is implemented.
+There are 21 storylines, 24 fictional brokerage/customer names, seven categories and grouped payload families. Only the last six reported paying assignments are excluded globally. This avoids immediate round-trip repetition, not all repetition forever. When a board is filled, unexpired cards are retained where the destination minimum and repetition rules allow. At Kodiak the minimum is three outbound destinations. At another network airport the minimum is Kodiak plus two distinct alternatives. A standing zero-payout repositioning option keeps Kodiak available even when the commercial offers go elsewhere. No real-time expiry, manual infinite-reroll button, dynamic demand economy or route-performance certification is implemented.
 
 The loading budget, four-passenger cap and fuel allowance are deliberately conservative documented **planning assumptions**. They are not a substitute for actual Caravan payload/range/performance data. No hazardous cargo, medical-patient transport, installed equipment, ground handling, cold storage, runway suitability or navigation procedure is implied by a story or route. Payouts are fictional bounded game prices; generation never credits them.
 

@@ -3,6 +3,9 @@ import type { FlightDraft } from './reports';
 export type DialogueEvent = 'accepted' | 'draft' | 'submitted' | 'cancelled';
 export interface DispatcherLine { id: string; text: string }
 const variants: Record<string, string[]> = {
+  'accepted:Repositioning': ['Empty return booked. Kodiak is your destination.', 'Repositioning leg set. Check the weather for Kodiak.', 'The Caravan can go home empty. File the flight when you land.'],
+  repositioned: ['Repositioning flight logged. No payout for the empty leg.', 'Empty leg recorded. Your flight time is in the logbook.', 'Company flight recorded with zero contract revenue.'],
+  repositionedHard: ['Repositioning flight and hard landing recorded. Check the aircraft before the next leg.'],
   acceptedCargo: ['Cargo booked. Check the load before you turn the key.', 'Manifest is yours. Keep those boxes where you put them.', 'Cargo reserved. The island can wait for a proper preflight.'],
   acceptedPassenger: ['Charter booked. Give them a clear briefing.', 'Passengers assigned. A calm cabin starts on the ground.', 'Charter reserved. Let the passengers enjoy the view, not the surprises.'],
   draft: ['Report held. We will settle the books when you are ready.', 'Draft saved. Nothing moves on the ledger yet.', 'Park the paperwork here. We will pick it up later.'],
@@ -40,7 +43,8 @@ export function selectDialogue(event: DialogueEvent, contract: Contract | undefi
   let context: string = event;
   if (event === 'accepted') context = contract?.generated ? `accepted:${contract.generated.category}` : contract?.type === 'Passenger charter' ? 'acceptedPassenger' : 'acceptedCargo';
   if (event === 'submitted' && report) {
-    if (report.delivery !== 'completed') context = report.delivery + (report.landing === 'hard' ? 'Hard' : '');
+    if (contract?.type === 'Repositioning') context = report.landing === 'hard' ? 'repositionedHard' : 'repositioned';
+    else if (report.delivery !== 'completed') context = report.delivery + (report.landing === 'hard' ? 'Hard' : '');
     else if (report.landing === 'hard') context = 'hard';
     else if (Number(report.estimatedMinutes) > 0 && Number(report.minutes) > Number(report.estimatedMinutes) * 1.25) context = 'longer';
     else if (report.estimatedFuelLb !== '' && Number(report.estimatedFuelLb) > 0 && report.fuelLb !== '' && Number(report.fuelLb) > Number(report.estimatedFuelLb) * 1.25) context = 'fuel';

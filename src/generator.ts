@@ -1,5 +1,6 @@
 import type { Contract, MissionCategory } from './missions';
 export const LOADING = Object.freeze({ usefulBudgetLb: 2800, crewLb: 220, fuelLb: 1400, marginLb: 180, payloadLimitLb: 1000, passengerLb: 220, bagPerPassengerLb: 25, maxPassengers: 4 });
+export const HOME_BASE = 'PADQ';
 export const SLOT_HOURS = 6, RECENT_WINDOW = 6, BOARD_SIZE = 4;
 export const airports = {
   PADQ: { name: 'Kodiak', lat: 57.7498, lon: -152.4939 },
@@ -8,12 +9,13 @@ export const airports = {
   PAHO: { name: 'Homer', lat: 59.6455, lon: -151.4766 },
   PAEN: { name: 'Kenai', lat: 60.5733, lon: -151.2448 },
 } as const;
-// Curated simulation route pairs, not assertions about runway performance, services or procedures.
-const pairs = [['PADQ', 'PALB'], ['PADQ', 'PAKH'], ['PADQ', 'PAHO'], ['PADQ', 'PAEN'], ['PAHO', 'PAEN']] as const;
-export function destinations(origin: string): string[] { return pairs.flatMap(([a, b]) => a === origin ? [b] : b === origin ? [a] : []); }
+// Simulated routes connect the five curated airports in either direction.
+export function destinations(origin: string): string[] {
+  return Object.prototype.hasOwnProperty.call(airports, origin) ? Object.keys(airports).filter(airport => airport !== origin) : [];
+}
 export function distanceNm(origin: string, destination: string): number {
   const a = airports[origin as keyof typeof airports], b = airports[destination as keyof typeof airports];
-  if (!a || !b || !destinations(origin).includes(destination)) throw new Error('Unsupported route.');
+  if (!a || !b || origin === destination) throw new Error('Unsupported route.');
   const rad = (n: number) => n * Math.PI / 180;
   const value = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lon - a.lon) / 2) ** 2;
   return Math.round(3440.065 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value)));
@@ -68,41 +70,99 @@ export function initialDispatch(seed: string): DispatchState { if (!/^[A-Za-z0-9
 export function fingerprint(contract: Contract): RecentAssignment { return { id: contract.id, title: contract.title, templateId: contract.generated?.templateId ?? `legacy:${contract.id}`, customer: contract.generated?.customer ?? 'Legacy customer', payloadFamily: contract.generated?.payloadFamily ?? contract.payload }; }
 function conflicts(contract: Contract, recent: RecentAssignment[]): boolean { const f = fingerprint(contract); return recent.some(r => r.title === f.title || r.templateId === f.templateId || r.customer === f.customer || r.payloadFamily === f.payloadFamily); }
 export function rememberAssignment(state: DispatchState, contract: Contract, arrival: string): DispatchState {
-  const recent = [fingerprint(contract), ...state.recent].slice(0, RECENT_WINDOW);
+  const recent = contract.type === 'Repositioning' ? state.recent : [fingerprint(contract), ...state.recent].slice(0, RECENT_WINDOW);
   // Filter all saved boards, not just the departure: anti-repeat survives a round trip.
   const boards = Object.fromEntries(Object.entries(state.boards).map(([airport, board]) => [airport, { ...board, offers: board.offers.filter(offer => !conflicts(offer, recent) && offer.id !== contract.id) }]));
   return { ...state, recent, boards, lastLeg: { origin: contract.origin, arrival } };
 }
 export function refreshBoard(state: DispatchState, origin: string, time: string, force = false): DispatchState {
-  const epoch = epochFor(time); const previous = state.boards[origin];
-  if (!force && previous?.epoch === epoch) return state;
-  const rng = random(`${state.seed}:${origin}:${epoch}:${state.nextSerial}`);
+  const epoch = epochFor(time);
+  const previous = state.boards[origin];
+  const routes = destinations(origin);
+  const away = origin !== HOME_BASE;
+  const alternatives = routes.filter(route => route !== HOME_BASE);
+  const minimum = routes.length ? (away ? 2 : 3) : 0;
+  const commercialLimit = BOARD_SIZE - Number(away);
+  const saved = previous?.epoch === epoch ? previous.offers : [];
+  const returning = saved.find(offer => offer.type === 'Repositioning');
+  const paid = saved.filter(offer => offer.type !== 'Repositioning' && !conflicts(offer, state.recent));
+  const served = new Set(paid.map(offer => offer.airport));
+  const coverage = alternatives.filter(route => served.has(route)).length;
+  if (!force && previous?.epoch === epoch && coverage >= minimum && (!away || returning)) return state;
+
+  // Keep existing offers unless they occupy space needed for missing destinations.
+  const distinct = new Set<string>();
+  const preferred = paid.filter(offer => {
+    if (offer.airport === HOME_BASE || distinct.has(offer.airport) || distinct.size === commercialLimit) return false;
+    distinct.add(offer.airport);
+    return true;
+  });
+  const spareSlots = commercialLimit - Math.max(minimum, preferred.length);
+  const extras = paid.filter(offer => !preferred.includes(offer)).slice(0, spareSlots);
+  const offers = paid.filter(offer => preferred.includes(offer) || extras.includes(offer));
+  let serial = state.nextSerial;
+  const rng = random(`${state.seed}:${origin}:${epoch}:${serial}`);
   const pick = <T,>(items: readonly T[]): T => items[Math.floor(rng() * items.length)];
-  const previousOrigin = state.lastLeg?.arrival === origin ? state.lastLeg.origin : null;
-  // A whole-board gate avoids making a return virtually certain by rolling once per card.
-  const withholdReturn = previousOrigin !== null && rng() < 0.4;
-  const routes = destinations(origin).filter(destination => !withholdReturn || destination !== previousOrigin);
-  const offers: Contract[] = previous?.epoch === epoch ? previous.offers.filter(offer => !conflicts(offer, state.recent)) : []; let serial = state.nextSerial;
   const recent = [...state.recent, ...offers.map(fingerprint)];
-  for (let i = offers.length; i < BOARD_SIZE && routes.length; i++) {
+  const expiresAt = new Date((epoch + 1) * SLOT_HOURS * 3600000).toISOString();
+  for (let i = offers.length; i < commercialLimit && routes.length; i++) {
     const eligible = templates.filter(t => !recent.some(r => r.templateId === t.id || r.title === t.title || r.payloadFamily === t.family));
     const clients = customers.filter(customer => !recent.some(r => r.customer === customer));
     if (!eligible.length || !clients.length) break;
+    const unservedAlternatives = alternatives.filter(route => !distinct.has(route));
     const unusedRoutes = routes.filter(route => !offers.some(offer => offer.airport === route));
-    const template = pick(eligible), customer = pick(clients), destination = pick(unusedRoutes.length ? unusedRoutes : routes);
+    const choices = distinct.size < minimum ? unservedAlternatives : unusedRoutes;
+    const template = pick(eligible), customer = pick(clients), destination = pick(choices.length ? choices : routes);
+    if (destination !== HOME_BASE) distinct.add(destination);
     const passengers = template.category === 'Passenger charter' ? 1 + Math.floor(rng() * LOADING.maxPassengers) : 0;
     const cargoLb = passengers ? 0 : (12 + Math.floor(rng() * 84)) * 10;
     const passengerLb = passengers * LOADING.passengerLb, baggageLb = passengers * LOADING.bagPerPassengerLb;
     const payloadLb = cargoLb + passengerLb + baggageLb, distance = distanceNm(origin, destination);
-    const payout = Math.round((350 + distance * 7 + payloadLb * 0.45) * template.premium / 25) * 25;
-    const contract: Contract = { id: `gen-${state.seed}-${serial}`, origin, airport: destination, destination: airports[destination as keyof typeof airports].name, title: template.title, type: passengers ? 'Passenger charter' : 'Cargo', distanceNm: distance, payout, payloadLb, payload: passengers ? `${passengers} passengers (${passengerLb} lb) and personal baggage (${baggageLb} lb)` : `${template.manifest} (${cargoLb} lb)`, story: `Mara: “${customer} called. ${template.story}”`, considerations: `${template.requirement} Use actual simulator loading, fuel, weather, runway and performance data; this is a fictional request, not an operating clearance.`, generated: { schema: 1, serial, category: template.category, templateId: template.id, customer, payloadFamily: template.family, passengers, passengerLb, baggageLb, cargoLb, fuelAssumptionLb: LOADING.fuelLb, offeredAt: time, expiresAt: new Date((epoch + 1) * SLOT_HOURS * 3600000).toISOString() } };
+    const payout = Math.min(3000, Math.round((350 + distance * 7 + payloadLb * 0.45) * template.premium / 25) * 25);
+    const contract: Contract = { id: `gen-${state.seed}-${serial}`, origin, airport: destination, destination: airports[destination as keyof typeof airports].name, title: template.title, type: passengers ? 'Passenger charter' : 'Cargo', distanceNm: distance, payout, payloadLb, payload: passengers ? `${passengers} passengers (${passengerLb} lb) and personal baggage (${baggageLb} lb)` : `${template.manifest} (${cargoLb} lb)`, story: `Mara: “${customer} called. ${template.story}”`, considerations: `${template.requirement} Use actual simulator loading, fuel, weather, runway and performance data; this is a fictional request, not an operating clearance.`, generated: { schema: 1, serial, category: template.category, templateId: template.id, customer, payloadFamily: template.family, passengers, passengerLb, baggageLb, cargoLb, fuelAssumptionLb: LOADING.fuelLb, offeredAt: time, expiresAt } };
     validateGenerated(contract); offers.push(contract); recent.push(fingerprint(contract)); serial++;
   }
-  return { ...state, nextSerial: serial, boards: { ...state.boards, [origin]: { epoch, offers } } };
+  if (away) {
+    offers.push(returning ?? returnToHome(state.seed, serial++, origin, time, expiresAt));
+  }
+  // A diversion can introduce any airport code. Keep only the current
+  // off-network board so one-off repositioning offers cannot fill the save.
+  const boards = Object.fromEntries(Object.entries(state.boards).filter(([airport]) => destinations(airport).length));
+  return { ...state, nextSerial: serial, boards: { ...boards, [origin]: { epoch, offers } } };
+}
+const distanceToHome = (origin: string) => destinations(origin).includes(HOME_BASE) ? distanceNm(origin, HOME_BASE) : null;
+function returnToHome(seed: string, serial: number, origin: string, offeredAt: string, expiresAt: string): Contract {
+  return {
+    id: `gen-${seed}-${serial}`, origin, airport: HOME_BASE, destination: airports[HOME_BASE].name,
+    title: 'Return to Home', type: 'Repositioning',
+    distanceNm: distanceToHome(origin),
+    payout: 0, payloadLb: 0, payload: 'Empty aircraft · no cargo or passengers',
+    story: 'Mara: “You can take the Caravan back to Kodiak empty. There’s no contract payout for this leg.”',
+    considerations: 'Plan the flight in the simulator and verify fuel, weather and runway conditions.',
+    generated: {
+      schema: 1, serial, category: 'Repositioning', templateId: 'return-home', customer: 'Company flight',
+      payloadFamily: 'empty aircraft', passengers: 0, passengerLb: 0, baggageLb: 0, cargoLb: 0,
+      fuelAssumptionLb: LOADING.fuelLb, offeredAt, expiresAt,
+    },
+  };
 }
 export function validateGenerated(contract: Contract): void {
   const g = contract?.generated;
-  if (!g || g.schema !== 1 || !Number.isSafeInteger(g.serial) || g.serial < 1 || typeof contract.id !== 'string' || !/^gen-[A-Za-z0-9_-]+-\d+$/.test(contract.id) || !destinations(contract.origin).includes(contract.airport) || contract.destination !== airports[contract.airport as keyof typeof airports]?.name || contract.distanceNm !== distanceNm(contract.origin, contract.airport) || !templates.some(t => t.category === g.category) || typeof g.templateId !== 'string' || !g.templateId || typeof g.payloadFamily !== 'string' || !g.payloadFamily || typeof g.customer !== 'string' || !g.customer || typeof contract.title !== 'string' || !contract.title || contract.title.length > 160 || !Number.isInteger(g.passengers) || g.passengers < 0 || g.passengers > LOADING.maxPassengers || !Number.isFinite(g.cargoLb) || g.cargoLb < 0 || g.cargoLb > 950 || g.passengerLb !== g.passengers * LOADING.passengerLb || g.baggageLb !== g.passengers * LOADING.bagPerPassengerLb || contract.payloadLb !== g.cargoLb + g.passengerLb + g.baggageLb || contract.payloadLb <= 0 || contract.payloadLb > LOADING.payloadLimitLb || g.fuelAssumptionLb !== LOADING.fuelLb || g.fuelAssumptionLb + LOADING.crewLb + LOADING.marginLb + contract.payloadLb > LOADING.usefulBudgetLb || (g.category === 'Passenger charter' ? contract.type !== 'Passenger charter' || !g.passengers || g.cargoLb !== 0 : contract.type !== 'Cargo' || g.passengers !== 0) || !Number.isInteger(contract.payout) || contract.payout < 350 || contract.payout > 3000 || typeof contract.payload !== 'string' || !contract.payload || typeof contract.story !== 'string' || !contract.story || typeof contract.considerations !== 'string' || !contract.considerations || !Number.isFinite(Date.parse(g.offeredAt)) || !Number.isFinite(Date.parse(g.expiresAt)) || Date.parse(g.expiresAt) <= Date.parse(g.offeredAt)) throw new Error('Invalid generated assignment.');
+  const invalid = 'Invalid generated assignment.';
+  if (!g || g.schema !== 1 || !Number.isSafeInteger(g.serial) || g.serial < 1 ||
+      typeof contract.id !== 'string' || !/^gen-[A-Za-z0-9_-]+-\d+$/.test(contract.id) ||
+      ![g.templateId, g.payloadFamily, g.customer, contract.title, contract.payload, contract.story, contract.considerations].every(value => typeof value === 'string' && value) ||
+      contract.title.length > 160 || !Number.isFinite(Date.parse(g.offeredAt)) ||
+      !Number.isFinite(Date.parse(g.expiresAt)) || Date.parse(g.expiresAt) <= Date.parse(g.offeredAt)) throw new Error(invalid);
+  if (contract.type === 'Repositioning') {
+    if (typeof contract.origin !== 'string' || !/^[A-Z0-9]{3,4}$/.test(contract.origin) || contract.origin === HOME_BASE ||
+        contract.airport !== HOME_BASE || contract.destination !== airports[HOME_BASE].name ||
+        contract.distanceNm !== distanceToHome(contract.origin) || contract.payout !== 0 || contract.payloadLb !== 0 ||
+        g.category !== 'Repositioning' || g.passengers !== 0 || g.passengerLb !== 0 || g.baggageLb !== 0 ||
+        g.cargoLb !== 0 || g.fuelAssumptionLb !== LOADING.fuelLb) throw new Error(invalid);
+    return;
+  }
+  if (!destinations(contract.origin).includes(contract.airport) || contract.destination !== airports[contract.airport as keyof typeof airports]?.name || contract.distanceNm !== distanceNm(contract.origin, contract.airport) || !templates.some(t => t.category === g.category) || !Number.isInteger(g.passengers) || g.passengers < 0 || g.passengers > LOADING.maxPassengers || !Number.isFinite(g.cargoLb) || g.cargoLb < 0 || g.cargoLb > 950 || g.passengerLb !== g.passengers * LOADING.passengerLb || g.baggageLb !== g.passengers * LOADING.bagPerPassengerLb || contract.payloadLb !== g.cargoLb + g.passengerLb + g.baggageLb || contract.payloadLb <= 0 || contract.payloadLb > LOADING.payloadLimitLb || g.fuelAssumptionLb !== LOADING.fuelLb || g.fuelAssumptionLb + LOADING.crewLb + LOADING.marginLb + contract.payloadLb > LOADING.usefulBudgetLb || (g.category === 'Passenger charter' ? contract.type !== 'Passenger charter' || !g.passengers || g.cargoLb !== 0 : contract.type !== 'Cargo' || g.passengers !== 0) || !Number.isInteger(contract.payout) || contract.payout < 350 || contract.payout > 3000) throw new Error(invalid);
 }
 export function validateDispatch(state: DispatchState): void {
   if (!state || state.schema !== 1 || typeof state.seed !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(state.seed) || !Number.isSafeInteger(state.nextSerial) || state.nextSerial < 1 || !state.boards || typeof state.boards !== 'object' || Array.isArray(state.boards) || Object.keys(state.boards).length > 20 || !Array.isArray(state.recent) || state.recent.length > RECENT_WINDOW || !state.recent.every(r => r && ['id', 'title', 'templateId', 'customer', 'payloadFamily'].every(k => typeof r[k as keyof RecentAssignment] === 'string')) || (state.lastLeg !== null && (!state.lastLeg || typeof state.lastLeg.origin !== 'string' || typeof state.lastLeg.arrival !== 'string'))) throw new Error('Invalid dispatch save.');
