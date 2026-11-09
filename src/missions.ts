@@ -4,15 +4,15 @@ export interface GeneratedDetails {
   cargoLb: number; passengerLb: number; fuelAssumptionLb: number;
   offeredAt: string; expiresAt: string;
 }
-export type MissionCategory = 'General cargo' | 'Commercial resupply' | 'Medical logistics' | 'Government / infrastructure' | 'Priority freight' | 'Community delivery' | 'Passenger charter';
+export type MissionCategory = 'General cargo' | 'Commercial resupply' | 'Medical logistics' | 'Government / infrastructure' | 'Priority freight' | 'Community delivery' | 'Passenger charter' | 'Repositioning';
 export interface Contract {
   id: string;
   origin: string;
   title: string;
-  type: 'Cargo' | 'Passenger charter';
+  type: 'Cargo' | 'Passenger charter' | 'Repositioning';
   destination: string;
   airport: string;
-  distanceNm: number;
+  distanceNm: number | null;
   payout: number;
   payload: string;
   payloadLb: number;
@@ -33,6 +33,6 @@ export const contracts: readonly Contract[] = [
   { id: 'ouzinkie-return', origin: '4K5', title: 'Back after the gathering', type: 'Passenger charter', destination: 'Kodiak', airport: 'PADQ', distanceNm: 12, payout: 700, payload: '3 passengers and baggage', payloadLb: 710, story: 'Mara: “Three guests are ready for Kodiak. Short hop, full briefing.”', considerations: 'Confirm passenger weights and restraints; retain normal reserves.' },
   { id: 'lions-return', origin: 'PORI', title: 'Research samples for Kodiak', type: 'Cargo', destination: 'Kodiak', airport: 'PADQ', distanceNm: 24, payout: 800, payload: 'Nonhazardous sealed sample cases', payloadLb: 180, story: 'Mara: “The field team has packed its samples. Bring the labels back with the boxes, preferably attached.”', considerations: 'Verify nonhazardous contents and secure cases away from exits.' },
 ];
-export const airportNames: Record<string, string> = { PADQ: 'Kodiak', PALB: 'Larsen Bay', PADY: 'Old Harbor', PAKH: 'Akhiok', '4K5': 'Ouzinkie', PORI: 'Port Lions', PAHO: 'Homer', PAEN: 'Kenai' };
+export const airportNames: Record<string, string> = { PADQ: 'Kodiak', PALB: 'Larsen Bay', PADY: 'Kongiganak', PAKH: 'Akhiok', '4K5': 'Ouzinkie', PORI: 'Port Lions', PAHO: 'Homer', PAEN: 'Kenai' };
 export function availableContracts(airport: string) { return contracts.filter(c => c.origin === airport); }
 export function findContract(id: string) { return contracts.find(contract => contract.id === id); }

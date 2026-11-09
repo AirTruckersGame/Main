@@ -2,7 +2,7 @@ import { initialChecklists, validateChecklists, type ChecklistState } from './ch
 import { chartCurrent, validChart, type ChartCatalog, type Chart, type PinnedApproach } from './efbData';
 import { withSaveCoordination } from './storageGate';
 import { findContract, type Contract } from './missions';
-import { initialDispatch, refreshBoard, rememberAssignment, validateDispatch, validateGenerated, hashSeed, type DispatchState } from './generator';
+import { epochFor, HOME_BASE, initialDispatch, refreshBoard, rememberAssignment, validateDispatch, validateGenerated, hashSeed, type DispatchState } from './generator';
 import { blankDraft, numericInput, validateDraft, type FlightDraft, type FlightEntry } from './reports';
 import { selectDialogue, type DialogueEvent, type DispatcherLine } from './dialogue';
 export interface Aircraft { id: string; model: string; location: string; hours: number; ownership: 'owned'; maintenance: 'Airworthy' }
@@ -18,12 +18,15 @@ export interface Game {
 }
 export const SAVE_KEY = 'airtruckers.save.v1';
 export function createGame(name: string, seed = newFlightId()): Game {
-  return { checklists: initialChecklists(), dispatch: refreshBoard(initialDispatch(seed), 'PADQ', '2026-06-01T08:00:00.000Z'), activeContract: null, pinnedApproach: null, activeMissionId: null, activeFlightId: null, pendingReport: null, logbook: [], recentDialogue: [], dispatcher: null, revision: 0, version: 1, company: { name: name.trim(), cash: 25000, headquarters: 'PADQ', reputation: 50 }, aircraft: [{ id: 'N208AT', model: 'Cessna 208B Grand Caravan EX', location: 'PADQ', hours: 0, ownership: 'owned', maintenance: 'Airworthy' }], pilots: [{ id: 'owner', role: 'Owner / Pilot', annualSalary: 65000 }], completedMissions: 0, flightHours: 0, operationalTime: '2026-06-01T08:00:00.000Z' };
+  return { checklists: initialChecklists(), dispatch: refreshBoard(initialDispatch(seed), HOME_BASE, '2026-06-01T08:00:00.000Z'), activeContract: null, pinnedApproach: null, activeMissionId: null, activeFlightId: null, pendingReport: null, logbook: [], recentDialogue: [], dispatcher: null, revision: 0, version: 1, company: { name: name.trim(), cash: 25000, headquarters: HOME_BASE, reputation: 50 }, aircraft: [{ id: 'N208AT', model: 'Cessna 208B Grand Caravan EX', location: HOME_BASE, hours: 0, ownership: 'owned', maintenance: 'Airworthy' }], pilots: [{ id: 'owner', role: 'Owner / Pilot', annualSalary: 65000 }], completedMissions: 0, flightHours: 0, operationalTime: '2026-06-01T08:00:00.000Z' };
 }
 export function advanceTime(game: Game, hours: number): Game {
   if (!Number.isFinite(hours) || hours <= 0 || hours > 168) throw new Error('Advance between 1 and 168 hours.');
   const operationalTime = new Date(Date.parse(game.operationalTime) + hours * 3600000).toISOString();
-  return { ...game, operationalTime, dispatch: refreshBoard(game.dispatch, game.aircraft[0].location, operationalTime) };
+  const dispatch = game.activeMissionId && epochFor(game.operationalTime) === epochFor(operationalTime)
+    ? game.dispatch
+    : refreshBoard(game.dispatch, game.aircraft[0].location, operationalTime);
+  return { ...game, operationalTime, dispatch };
 }
 const nonnegative = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0;
 const airport = (value: unknown): value is string => typeof value === 'string' && /^[A-Z0-9]{3,4}$/.test(value);
@@ -38,7 +41,7 @@ function validateEntry(e: FlightEntry) {
 }
 export function parseSave(raw: string): Game {
   const g = JSON.parse(raw) as Game;
-  if (!g || g.version !== 1 || !g.company || typeof g.company.name !== 'string' || !g.company.name.trim() || !Number.isFinite(g.company.cash) || g.company.headquarters !== 'PADQ' || !Number.isFinite(g.company.reputation) || !Number.isInteger(g.completedMissions) || g.completedMissions < 0 || !nonnegative(g.flightHours) || !timestamp(g.operationalTime) || !Array.isArray(g.aircraft) || !g.aircraft.length || !g.aircraft.every(a => a && typeof a.id === 'string' && typeof a.model === 'string' && airport(a.location) && nonnegative(a.hours) && a.ownership === 'owned' && a.maintenance === 'Airworthy') || !Array.isArray(g.pilots) || !g.pilots.length || !g.pilots.every(p => p && typeof p.id === 'string' && p.role === 'Owner / Pilot' && nonnegative(p.annualSalary))) throw new Error('This save is damaged or uses an unsupported version. Your stored data has not been changed.');
+  if (!g || g.version !== 1 || !g.company || typeof g.company.name !== 'string' || !g.company.name.trim() || !Number.isFinite(g.company.cash) || g.company.headquarters !== HOME_BASE || !Number.isFinite(g.company.reputation) || !Number.isInteger(g.completedMissions) || g.completedMissions < 0 || !nonnegative(g.flightHours) || !timestamp(g.operationalTime) || !Array.isArray(g.aircraft) || !g.aircraft.length || !g.aircraft.every(a => a && typeof a.id === 'string' && typeof a.model === 'string' && airport(a.location) && nonnegative(a.hours) && a.ownership === 'owned' && a.maintenance === 'Airworthy') || !Array.isArray(g.pilots) || !g.pilots.length || !g.pilots.every(p => p && typeof p.id === 'string' && p.role === 'Owner / Pilot' && nonnegative(p.annualSalary))) throw new Error('This save is damaged or uses an unsupported version. Your stored data has not been changed.');
   const activeMissionId = g.activeMissionId === undefined ? null : g.activeMissionId;
   const contract = activeMissionId === null ? undefined : typeof activeMissionId === 'string' ? (g.activeContract ?? findContract(activeMissionId)) : undefined;
   if (contract) { validateStoredContract(contract); if (contract.id !== activeMissionId) throw new Error('Active contract mismatch.'); }
@@ -78,6 +81,7 @@ export function parseSave(raw: string): Game {
     if (n.pendingReport.flightId !== n.activeFlightId) throw new Error('Draft does not match active flight.');
   }
   if (n.pinnedApproach !== null && (!n.pinnedApproach || n.pinnedApproach.flightId !== n.activeFlightId || !validChart(n.pinnedApproach.chart) || n.pinnedApproach.chart.type !== 'IAP' || !contract || ![contract.origin, contract.airport].includes(n.pinnedApproach.chart.airport))) throw new Error('Invalid pinned approach in save.');
+  if (!n.activeMissionId) n.dispatch = refreshBoard(n.dispatch, n.aircraft[0].location, n.operationalTime);
   return n;
 }
 function acknowledge(game: Game, event: DialogueEvent, report?: FlightDraft): Game {
@@ -103,7 +107,8 @@ export function acceptMission(game: Game, id: string): Game {
 }
 export function cancelMission(game: Game): Game {
   if (!game.activeMissionId) return game;
-  return { ...acknowledge(game, 'cancelled'), activeMissionId: null, activeContract: null, activeFlightId: null, pendingReport: null, pinnedApproach: null };
+  const dispatch = refreshBoard(game.dispatch, game.aircraft[0].location, game.operationalTime);
+  return { ...acknowledge(game, 'cancelled'), dispatch, activeMissionId: null, activeContract: null, activeFlightId: null, pendingReport: null, pinnedApproach: null };
 }
 export function reportFor(game: Game): FlightDraft {
   const contract = getActiveContract(game);
@@ -130,7 +135,7 @@ export function submitFlightReport(game: Game, report: FlightDraft): Game {
   const entry: FlightEntry = { contract: cloneContract(contract), id: report.flightId, missionId: contract.id, title: contract.title, aircraftId: game.aircraft[0].id, origin: contract.origin, plannedDestination: contract.airport, arrival: report.arrival, payload: contract.payload, proposedPayout: contract.payout, revenue, minutes, fuelLb: numericInput(report.fuelLb, 'fuel'), estimatedMinutes: numericInput(report.estimatedMinutes, 'minutes'), estimatedFuelLb: numericInput(report.estimatedFuelLb, 'fuel'), delivery: report.delivery, landing: report.landing, notes: report.notes, startedAt: game.operationalTime, endedAt };
   const next = acknowledge(game, 'submitted', report);
   const dispatch = refreshBoard(rememberAssignment(game.dispatch, contract, report.arrival), report.arrival, endedAt, true);
-  return { ...next, dispatch, company: { ...game.company, cash: game.company.cash + revenue }, aircraft: game.aircraft.map((a, i) => i === 0 ? { ...a, location: report.arrival, hours: a.hours + minutes / 60 } : a), completedMissions: game.completedMissions + (report.delivery === 'completed' ? 1 : 0), flightHours: game.flightHours + minutes / 60, operationalTime: endedAt, logbook: [...game.logbook, entry], activeMissionId: null, activeContract: null, activeFlightId: null, pendingReport: null, pinnedApproach: null };
+  return { ...next, dispatch, company: { ...game.company, cash: game.company.cash + revenue }, aircraft: game.aircraft.map((a, i) => i === 0 ? { ...a, location: report.arrival, hours: a.hours + minutes / 60 } : a), completedMissions: game.completedMissions + (report.delivery === 'completed' && contract.type !== 'Repositioning' ? 1 : 0), flightHours: game.flightHours + minutes / 60, operationalTime: endedAt, logbook: [...game.logbook, entry], activeMissionId: null, activeContract: null, activeFlightId: null, pendingReport: null, pinnedApproach: null };
 }
 // One versioned document commits cash, clock, aircraft, draft and logbook together.
 export const localSaveRepository = {

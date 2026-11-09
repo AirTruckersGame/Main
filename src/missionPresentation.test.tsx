@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { contracts, type Contract } from './missions';
-import { createGame } from './game';
+import { acceptMission, createGame, offeredContracts, reportFor, submitFlightReport, type Game } from './game';
+import { Dispatch } from './Dispatch';
+import { FlightOperations } from './FlightOperations';
 import { destinationTheme, missionSymbol, weatherVisual } from './missionPresentation';
 import { clearMissionWeatherCache, fetchMissionWeather } from './missionWeather';
 import { ActiveMissionHero, MissionIcon, RouteWeather } from './MissionVisuals';
@@ -102,4 +104,32 @@ describe('compact weather requests and hero presentation', () => {
     await screen.findByText('No Report'); await screen.findByText('Data Unavailable');
     expect(screen.getByRole('img', { name: /PALB: Data Unavailable/ })).toBeTruthy();
   });
+});
+
+it('lets the pilot select an empty return on Dispatch and submit it through Flight Operations', async () => {
+  const start = createGame('Dispatch UI', 'reposition-ui');
+  const kenai = offeredContracts(start).find(contract => contract.airport === 'PAEN')!;
+  const outbound = acceptMission(start, kenai.id);
+  const arrived = submitFlightReport(outbound, { ...reportFor(outbound), minutes: '40' });
+  const onChange = vi.fn(async (_game: Game) => true);
+  const onNavigate = vi.fn();
+  const dispatch = render(<Dispatch game={arrived} onChange={onChange} onNotice={vi.fn()} onNavigate={onNavigate}/>);
+  const card = within(screen.getByRole('article', { name: 'Return to Home' }));
+  expect(card.getByText('$0')).toBeTruthy();
+  expect(card.getByText('0 lb')).toBeTruthy();
+  fireEvent.click(card.getByRole('button', { name: 'Select empty return' }));
+  const accepted = onChange.mock.calls[0][0];
+  dispatch.unmount();
+
+  render(<FlightOperations game={accepted} onChange={onChange} onNavigate={onNavigate}/>);
+  expect(screen.getByLabelText('Flight outcome')).toBeTruthy();
+  fireEvent.change(screen.getByLabelText(/Actual flight time/), { target: { value: '42' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit Flight Report' }));
+  const confirmation = within(screen.getByRole('region', { name: 'Confirm flight report' }));
+  expect(confirmation.getByText('$0')).toBeTruthy();
+  fireEvent.click(confirmation.getByRole('button', { name: 'Confirm & submit report' }));
+  await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('Flight Logbook'));
+  const finished = onChange.mock.calls[1][0];
+  expect(finished.aircraft[0].location).toBe('PADQ');
+  expect(finished.company.cash).toBe(arrived.company.cash);
 });
