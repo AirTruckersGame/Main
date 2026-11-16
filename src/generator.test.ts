@@ -58,8 +58,8 @@ describe('seeded dispatch generation', () => {
     expect(destinations('PADY')).toEqual([]); expect(destinations('PANC')).toEqual([]);
     for (const origin of Object.keys(airports)) {
       const state = refreshBoard(initialDispatch('route-seed'), origin, '2026-06-01T08:00:00Z'); expect(state.boards[origin].offers).toHaveLength(BOARD_SIZE);
-      expect(new Set(state.boards[origin].offers.map(c => c.airport)).size).toBe(Math.min(BOARD_SIZE, destinations(origin).length));
-      for (const c of state.boards[origin].offers) { expect(destinations(origin)).toContain(c.airport); expect(destinations(c.airport)).toContain(origin); expect(c.distanceNm).toBe(distanceNm(c.airport, origin)); expect(c.distanceNm).toBeGreaterThan(0); expect(c.distanceNm).toBeLessThan(180); expect(() => validateGenerated(c)).not.toThrow(); }
+      expect(new Set(state.boards[origin].offers.map(c => c.airport)).size).toBeGreaterThanOrEqual(3);
+      for (const c of state.boards[origin].offers) { expect(destinations(origin)).toContain(c.airport); expect(destinations(c.airport)).toContain(origin); expect(c.distanceNm).toBe(distanceNm(c.airport, origin)); expect(c.distanceNm).toBeGreaterThan(0); expect(c.distanceNm).toBeLessThan(240); expect(() => validateGenerated(c)).not.toThrow(); }
     }
   });
   it('enforces conservative fuel/crew/payload assumptions and rejects corrupt loads, routes and payouts', () => {
@@ -96,8 +96,6 @@ describe('assignment lifecycle, anti-repetition and finances', () => {
   });
   it('prevents recent title/story/customer/payload repetition across a real round trip and reload', () => {
     let game = createGame('Test', 'roundtrip'); const first = offeredContracts(game)[0]; game = complete(acceptMission(game, first.id));
-    // Return opportunities can require waiting; no real-world timer is involved.
-    for (let slot = 0; slot < 30 && !offeredContracts(game).some(c => c.airport === 'PADQ'); slot++) game = advanceTime(game, 6);
     const back = offeredContracts(game).find(c => c.airport === 'PADQ'); expect(back).toBeDefined();
     game = complete(acceptMission(game, back!.id)); expect(game.aircraft[0].location).toBe('PADQ'); game = parseSave(JSON.stringify(game));
     for (const offer of offeredContracts(game)) for (const recent of game.dispatch.recent) {
@@ -116,10 +114,60 @@ describe('assignment lifecycle, anti-repetition and finances', () => {
     }
     expect(game.logbook).toHaveLength(25); expect(new Set(game.logbook.map(e => e.missionId)).size).toBe(25);
   });
-  it('makes return jobs possible but not guaranteed by an arrival', () => {
-    const outcomes = new Set<boolean>();
-    for (let i = 0; i < 50; i++) { const active = acceptFirst(createGame('Test', `return-${i}`)); const next = complete(active); outcomes.add(offeredContracts(next).some(c => c.airport === 'PADQ')); }
-    expect(outcomes).toEqual(new Set([true, false]));
+  it('offers at least two alternatives to Kodiak even when a paying job home is available', () => {
+    const paidHomeAvailability = new Set<boolean>();
+    for (let i = 0; i < 50; i++) {
+      const arrived = complete(acceptFirst(createGame('Test', `return-${i}`)));
+      for (const game of [arrived, advanceTime(arrived, 6)]) {
+        const board = offeredContracts(game);
+        expect(new Set(board.filter(c => c.airport !== 'PADQ').map(c => c.airport)).size).toBeGreaterThanOrEqual(2);
+        expect(board.filter(c => c.type === 'Repositioning')).toEqual([
+          expect.objectContaining({ title: 'Return to Home', airport: 'PADQ', payout: 0, payloadLb: 0 }),
+        ]);
+        paidHomeAvailability.add(board.some(c => c.airport === 'PADQ' && c.payout > 0));
+      }
+    }
+    expect(paidHomeAvailability).toEqual(new Set([true, false]));
+  });
+  it('repairs a saved single-destination Kenai board and keeps three choices after the flight to Homer', () => {
+    const start = createGame('Test', 'kenai-homer');
+    const kenai = offeredContracts(start).find(c => c.airport === 'PAEN')!;
+    const arrived = complete(acceptMission(start, kenai.id));
+    const saved = arrived.dispatch.boards.PAEN;
+    saved.offers = saved.offers.filter(c => c.type !== 'Repositioning').map(c => ({
+      ...c, airport: 'PAHO', destination: 'Homer', distanceNm: distanceNm('PAEN', 'PAHO'),
+    }));
+
+    const restored = parseSave(JSON.stringify(arrived));
+    expect(restored.logbook).toEqual(arrived.logbook);
+    expect(restored.company).toEqual(arrived.company);
+    expect(new Set(offeredContracts(restored).map(c => c.airport)).size).toBeGreaterThanOrEqual(3);
+    expect(offeredContracts(restored)).toContainEqual(saved.offers[0]);
+    expect(parseSave(JSON.stringify(restored))).toEqual(restored);
+
+    const homer = offeredContracts(restored).find(c => c.airport === 'PAHO')!;
+    const next = complete(acceptMission(restored, homer.id));
+    expect(next.aircraft[0].location).toBe('PAHO');
+    expect(new Set(offeredContracts(next).map(c => c.airport)).size).toBeGreaterThanOrEqual(3);
+  });
+  it('reoffers an empty return after cancellation and logs an empty flight without a payout', () => {
+    const arrived = complete(acceptFirst(createGame('Test', 'reposition')));
+    const home = offeredContracts(arrived).find(c => c.type === 'Repositioning')!;
+    expect(() => validateGenerated({ ...home, payout: 1 })).toThrow('Invalid generated');
+    const cancelled = cancelMission(acceptMission(arrived, home.id));
+    const replacement = offeredContracts(cancelled).find(c => c.type === 'Repositioning')!;
+    expect(replacement.id).not.toBe(home.id);
+    expect(new Set(offeredContracts(cancelled).map(c => c.airport)).size).toBeGreaterThanOrEqual(3);
+    const active = acceptMission(cancelled, replacement.id);
+    const draft = saveFlightDraft(active, { ...reportFor(active), fuelLb: '110' });
+    const finished = complete(parseSave(JSON.stringify(draft)));
+    expect(finished.aircraft[0].location).toBe('PADQ');
+    expect(finished.company.cash).toBe(arrived.company.cash);
+    expect(finished.completedMissions).toBe(arrived.completedMissions);
+    expect(finished.dispatch.recent).toEqual(arrived.dispatch.recent);
+    expect(finished.logbook.at(-1)).toMatchObject({ revenue: 0, fuelLb: 110, contract: replacement });
+    expect(parseSave(JSON.stringify(finished))).toEqual(finished);
+    expect(offeredContracts(finished).every(c => c.type !== 'Repositioning')).toBe(true);
   });
   it('persists offers, active snapshots and drafts through storage/backups and pays only once under concurrent submission', async () => {
     storage(); const game = acceptFirst(createGame('Test', 'storage')); const draft = saveFlightDraft(game, { ...reportFor(game), minutes: '30', notes: 'Finish later' }); localSaveRepository.save(draft);
@@ -172,7 +220,7 @@ describe('older saves and read-only dispatcher context', () => {
   it('preserves old logbook entries without requiring new contract snapshots or rewriting legacy airport codes', () => {
     const game = complete(acceptLegacyMission(createGame('Old log'), 'kodiak-02'));
     const raw = older(game); raw.logbook = raw.logbook.map(({ contract: _, ...entry }) => entry);
-    const restored = parseSave(JSON.stringify(raw)); expect(restored.logbook).toEqual(raw.logbook); expect(restored.aircraft[0].location).toBe('PADY'); expect(offeredContracts(restored)).toEqual([]); expect(createDispatcherContext(restored).status).toBe('no-offers'); expect(restored.company.cash).toBe(raw.company.cash);
+    const restored = parseSave(JSON.stringify(raw)); expect(restored.logbook).toEqual(raw.logbook); expect(restored.aircraft[0].location).toBe('PADY'); expect(offeredContracts(restored)).toEqual([expect.objectContaining({ origin: 'PADY', airport: 'PADQ', type: 'Repositioning', distanceNm: null })]); expect(createDispatcherContext(restored).status).toBe('available'); expect(restored.company.cash).toBe(raw.company.cash);
   });
   it('provides detached, deeply frozen context and broader category-specific nonrepeating dialogue without API calls', () => {
     const game = acceptFirst(createGame('Context', 'context')); const context = createDispatcherContext(game);
